@@ -1,0 +1,68 @@
+name: Refresh intelligence and deploy Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    # Every 30 minutes, offset from the busiest minute. UTC.
+    - cron: '17,47 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Restore last collected snapshot for outage fallback
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: dist/data/incidents.json
+          key: cyberwatch-feeds-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: cyberwatch-feeds-
+      - name: Run offline regression checks
+        run: |
+          python -m unittest discover -s tests -p 'test_*.py'
+          node --check dist/app.js
+          node --check dist/refresh.js
+          node --check dist/footer.js
+          node --test tests/*.test.mjs
+      - name: Collect intelligence, publisher updates, and Bangladesh sources
+        run: python scripts/fetch_feeds.py
+      - name: Validate deployment data
+        run: python scripts/validate_data.py
+      - name: Package portable GitHub project
+        run: python scripts/package_source.py
+      - name: Upload static application
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
