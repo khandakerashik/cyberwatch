@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   schedule:
     # Every 30 minutes, offset from the busiest minute. UTC.
-    - cron: '14,44 * * * *'
+    - cron: '18,48 * * * *'
 
 permissions:
   contents: read
