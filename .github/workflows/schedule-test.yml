@@ -1,0 +1,15 @@
+name: CyberWatch Schedule Test
+
+on:
+  schedule:
+    - cron: '13,33 * * * *'
+  workflow_dispatch:
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm scheduled execution
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          date -u
