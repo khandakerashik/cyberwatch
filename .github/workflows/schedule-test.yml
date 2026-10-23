@@ -2,7 +2,7 @@ name: CyberWatch Schedule Test
 
 on:
   schedule:
-    - cron: '13,33 * * * *'
+    - cron: '17,37 * * * *'
   workflow_dispatch:
 
 jobs:
