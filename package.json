@@ -1,0 +1,12 @@
+{
+  "name": "cyberwatch",
+  "version": "1.4.0",
+  "private": true,
+  "type": "module",
+  "description": "CyberWatch: live cyber intelligence, expanded event assessments, and Bangladesh cyber news.",
+  "scripts": {
+    "check": "node --check dist/app.js && node --check dist/refresh.js && node --check dist/footer.js && node --test tests/*.test.mjs && python3 -m unittest discover -s tests -p 'test_*.py' && python3 scripts/validate_data.py",
+    "refresh": "python3 scripts/fetch_feeds.py",
+    "start": "python3 server/app.py"
+  }
+}

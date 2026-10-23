@@ -1,0 +1,623 @@
+[
+  {
+    "id": "php-session-upload-2026-10-23",
+    "sourceId": "curated",
+    "title": "PHP issues follow-up session upload advisory",
+    "organization": "PHP",
+    "summary": "A conditional RCE path prompts additional configuration guidance.",
+    "description": "PHP advises disabling session upload progress until its next regular bugfix release. The issue requires an unusual configuration: a php_binary or php_serialize session handler changed to php at runtime before session_start(), with upload progress enabled. A full CVE-2026-115560 advisory is planned with the next release.",
+    "category": "Advisory",
+    "severity": "unknown",
+    "severityBasis": "The informational advisory does not assign a severity score. Applicability depends on configuration and application behavior.",
+    "status": "monitoring",
+    "publishedAt": "2026-10-23",
+    "updatedAt": "2026-10-23",
+    "geography": [
+      "Global"
+    ],
+    "sectors": [
+      "Technology",
+      "Cross-sector"
+    ],
+    "cves": [
+      "CVE-2026-115560"
+    ],
+    "tags": [
+      "PHP",
+      "RCE",
+      "Session handling",
+      "Configuration"
+    ],
+    "exploited": false,
+    "impact": [
+      "Potential remote code execution in applications meeting the stated conditions.",
+      "The notice does not claim universal exposure or confirmed exploitation."
+    ],
+    "recommendations": [
+      "Set session.upload_progress.enabled=0 as advised by PHP and verify the effective runtime configuration.",
+      "Review whether application code changes the session serialization handler before session_start().",
+      "Track the next regular PHP release and its complete advisory."
+    ],
+    "timeline": [
+      {
+        "date": "2026-10-23",
+        "title": "Follow-up advisory published",
+        "description": "PHP publishes conditional exposure details and interim configuration guidance."
+      }
+    ],
+    "sources": [
+      {
+        "name": "PHP — 2026 news archive",
+        "url": "https://www.php.net/archive/2026.php",
+        "publishedAt": "2026-10-23",
+        "kind": "primary"
+      }
+    ],
+    "confidence": "confirmed",
+    "evidenceNote": "Vendor-published advisory. Unknown severity means unscored here; it does not mean low risk. Exploited=false means no exploitation assertion is made by this record.",
+    "technicalDetails": {
+      "affectedSystems": [
+        "PHP applications using session upload progress with a runtime change of session serialization handler. The follow-up notice does not provide a complete affected-version range."
+      ],
+      "attackVector": [
+        "A conditional remote-code-execution path involving session upload progress; the notice describes an unusual application configuration."
+      ],
+      "prerequisites": [
+        "The configured session.serialize_handler is php_binary or php_serialize.",
+        "Application code changes the handler to php with ini_set() before calling session_start(), while session upload progress remains enabled."
+      ],
+      "detection": [
+        "Inspect effective PHP configuration and search application initialization for runtime changes to session.serialize_handler. Confirm the order relative to session_start()."
+      ],
+      "mitigation": [
+        "Disable session.upload_progress.enabled until the next regular bugfix release. Retain this setting if already applied for the October 21 advisory."
+      ],
+      "limitations": [
+        "The complete CVE-2026-115560 advisory was still pending in this notice. Applications that never change the handler at runtime do not meet the stated conditions."
+      ],
+      "reviewedAt": "2026-10-23"
+    }
+  },
+  {
+    "id": "capcom-id-2026-10-22",
+    "sourceId": "curated",
+    "title": "CAPCOM ID breach affects 11.77 million records",
+    "organization": "Capcom",
+    "summary": "Unauthorized access exposed customer email and login metadata.",
+    "description": "Capcom disclosed unauthorized access to CAPCOM ID customer information. It says emergency containment is complete, the attack method has been addressed, and its investigation continues. Games and account services remain available.",
+    "category": "Incident",
+    "severity": "high",
+    "severityBasis": "Analyst assessment: large-scale personal-data exposure and unauthorized account changes. Capcom does not publish a formal severity rating.",
+    "status": "investigating",
+    "publishedAt": "2026-10-22",
+    "updatedAt": "2026-10-23",
+    "geography": [
+      "Japan",
+      "Global"
+    ],
+    "sectors": [
+      "Gaming",
+      "Consumer services"
+    ],
+    "cves": [],
+    "tags": [
+      "Data breach",
+      "Personal data",
+      "Account security"
+    ],
+    "exploited": false,
+    "impact": [
+      "Email and login metadata affected: 11,774,247 records worldwide.",
+      "Additional profile fields affected: 43 records; passwords changed without authorization: 196 accounts.",
+      "Credit-card data was excluded; compromise of customers' original passwords was not confirmed."
+    ],
+    "recommendations": [
+      "Treat unexpected Capcom messages as potential phishing; use official support channels.",
+      "Review account notifications and follow Capcom's account-recovery instructions.",
+      "Analyst guidance: review password reuse and monitor unusual login activity."
+    ],
+    "timeline": [
+      {
+        "date": "2026-10-19",
+        "title": "Access detected",
+        "description": "Suspicious activity confirmed; emergency response begins."
+      },
+      {
+        "date": "2026-10-21",
+        "title": "Authorities notified",
+        "description": "Police and the Japanese privacy regulator receive reports."
+      },
+      {
+        "date": "2026-10-22",
+        "title": "Public disclosure",
+        "description": "Customer impact figures published."
+      }
+    ],
+    "sources": [
+      {
+        "name": "Capcom — incident disclosure",
+        "url": "https://www.capcom.co.jp/ir/english/news/html/e261022.html",
+        "publishedAt": "2026-10-22",
+        "kind": "primary"
+      }
+    ],
+    "confidence": "confirmed",
+    "evidenceNote": "Counts and response reflect Capcom's October 22 disclosure. Exploited refers to a vulnerability exploitation assertion, not whether this breach occurred.",
+    "technicalDetails": {
+      "affectedSystems": [
+        "CAPCOM ID account information: email addresses and identifiers including account creation, last login, login count and last-login client IP.",
+        "A subset of 43 records also included birth date, gender, country/region and nickname."
+      ],
+      "attackVector": [],
+      "prerequisites": [],
+      "detection": [
+        "Check official account notices and unexpected account changes. Treat unsolicited messages invoking the incident as potential phishing; verify through Capcom’s published support channel."
+      ],
+      "mitigation": [
+        "Capcom reports blocking the unauthorized access and addressing the attack method. It reset passwords on the 196 accounts changed without authorization."
+      ],
+      "limitations": [
+        "The disclosure does not explain the technical entry point. Compromise of the original customer passwords was not confirmed, and credit-card information was excluded."
+      ],
+      "reviewedAt": "2026-10-23"
+    }
+  },
+  {
+    "id": "railway-secrets-2026-10-21",
+    "sourceId": "curated",
+    "title": "Railway warns customer secrets may be exposed",
+    "organization": "Railway",
+    "summary": "Customers urged to rotate environment variables and private registry credentials.",
+    "description": "Railway detected anomalous activity involving systems holding customer environment variables. Its initial investigation indicates that a third party may have accessed encrypted values and decrypted some. The company recommended precautionary action for all users while determining the affected accounts.",
+    "category": "Incident",
+    "severity": "high",
+    "severityBasis": "Analyst assessment: potential exposure of reusable credentials and downstream cloud access. Railway does not assign a formal severity score.",
+    "status": "investigating",
+    "publishedAt": "2026-10-21",
+    "updatedAt": "2026-10-23",
+    "geography": [
+      "Global"
+    ],
+    "sectors": [
+      "Cloud",
+      "Technology"
+    ],
+    "cves": [],
+    "tags": [
+      "Credential exposure",
+      "API keys",
+      "Cloud",
+      "Supply chain"
+    ],
+    "exploited": false,
+    "impact": [
+      "Potential exposure of API keys, database credentials and private registry credentials.",
+      "Deployments were paused during the initial investigation; this record does not establish current service availability.",
+      "Possible downstream misuse depends on the privileges of exposed credentials."
+    ],
+    "recommendations": [
+      "Rotate secrets stored in Railway, including API keys and private registry credentials.",
+      "Deactivate potentially exposed AWS keys; review CloudTrail, billing and unfamiliar resources.",
+      "Disable potentially exposed Google Cloud service-account keys; review audit logs and redeploy with replacement credentials.",
+      "Verify dependent workloads use the new credentials and investigate anomalous access."
+    ],
+    "timeline": [
+      {
+        "date": "2026-10-21",
+        "title": "Incident disclosed",
+        "description": "Railway issues rotation guidance and pauses deployments during investigation."
+      },
+      {
+        "date": "2026-10-22",
+        "title": "Cloud review guidance added",
+        "description": "AWS and Google Cloud investigation instructions published."
+      }
+    ],
+    "sources": [
+      {
+        "name": "Railway — security disclosure",
+        "url": "https://blog.railway.com/p/security-disclosure-wednesday-october-21st",
+        "publishedAt": "2026-10-21",
+        "kind": "primary"
+      },
+      {
+        "name": "Railway — AWS access review",
+        "url": "https://blog.railway.com/p/security-disclosure-recommendation-check-for-anomalous-aws-access",
+        "publishedAt": "2026-10-22",
+        "kind": "primary"
+      },
+      {
+        "name": "Railway — GCP access review",
+        "url": "https://blog.railway.com/p/security-disclosure-recommendation-check-for-anomalous-gcp-access",
+        "publishedAt": "2026-10-22",
+        "kind": "primary"
+      }
+    ],
+    "confidence": "confirmed",
+    "evidenceNote": "The disclosure is confirmed; exposure scope remains qualified as 'may have' by the provider. Recommendations include defensive analyst synthesis.",
+    "technicalDetails": {
+      "affectedSystems": [
+        "Systems holding Railway customer environment variables, potentially including API keys, database secrets and private registry credentials."
+      ],
+      "attackVector": [
+        "Possible unauthorized access to encrypted secret values and, for some values, plaintext; the initial access mechanism is not detailed."
+      ],
+      "prerequisites": [
+        "Downstream exposure depends on which credentials were stored in Railway and the permissions attached to them. The affected account set was still under investigation."
+      ],
+      "detection": [
+        "In AWS CloudTrail, review the potentially exposed access-key ID across Regions; compare unexpected resource creation, IAM changes and billing with normal operations.",
+        "In Google Cloud Audit Logs, review the service-account principal, IAM changes and unfamiliar resources. Check billing and impersonation activity; unfamiliar shared egress IPs alone do not prove misuse."
+      ],
+      "mitigation": [
+        "Revoke or disable potentially exposed cloud credentials, replace the stored values and redeploy dependent workloads. Confirm the replacement credentials work and review other systems that used the old keys."
+      ],
+      "limitations": [
+        "The provider describes possible exposure, not confirmed compromise of every customer. Feed status does not establish present Railway service availability."
+      ],
+      "reviewedAt": "2026-10-23"
+    }
+  },
+  {
+    "id": "php2shell-exploitation-2026-10-21",
+    "sourceId": "curated",
+    "title": "PHP2Shell attempts predate public disclosure",
+    "organization": "PHP / AWS",
+    "summary": "Amazon reports honeypot exploitation attempts starting October 17.",
+    "description": "Amazon Threat Intelligence traced PHP2Shell attempts against MadPot to four days before the October 21 disclosure. Additional attempts appeared around the release. AWS cautions that whether those attempts would have succeeded on real-world systems remains unclear.",
+    "category": "Advisory",
+    "severity": "critical",
+    "severityBasis": "Underlying PHP vulnerabilities are vendor-rated Critical, CVSS v4.0 9.2. This is threat activity reporting, not a new scored vulnerability.",
+    "status": "active",
+    "publishedAt": "2026-10-21",
+    "updatedAt": "2026-10-21",
+    "geography": [
+      "Global"
+    ],
+    "sectors": [
+      "Cross-sector",
+      "Technology"
+    ],
+    "cves": [
+      "CVE-2026-109618",
+      "CVE-2026-109619"
+    ],
+    "tags": [
+      "Exploitation attempts",
+      "PHP",
+      "RCE",
+      "Threat intelligence"
+    ],
+    "exploited": true,
+    "impact": [
+      "Unpatched PHP web deployments face attempted remote code execution.",
+      "Honeypot telemetry does not establish compromise of any specific organization."
+    ],
+    "recommendations": [
+      "Apply the supported PHP security release immediately.",
+      "Review relevant logs from at least October 17, including unusual POST requests, process execution and file changes.",
+      "Use the published indicators as investigation leads; shared anonymization addresses alone do not prove compromise."
+    ],
+    "timeline": [
+      {
+        "date": "2026-10-17",
+        "title": "Earliest observed attempt",
+        "description": "Amazon later identifies activity in MadPot telemetry."
+      },
+      {
+        "date": "2026-10-21",
+        "title": "Attempts and disclosure",
+        "description": "Additional attempts observed; Amazon publishes findings."
+      }
+    ],
+    "sources": [
+      {
+        "name": "AWS — PHP2Shell threat intelligence",
+        "url": "https://aws.amazon.com/blogs/security/amazon-threat-intelligence-identifies-php2shell-exploitation-prior-to-public-disclosure-in-madpot/",
+        "publishedAt": "2026-10-21",
+        "kind": "primary"
+      },
+      {
+        "name": "PHP — critical release announcement",
+        "url": "https://news-web.php.net/php.announce/509",
+        "publishedAt": "2026-10-20",
+        "kind": "primary"
+      }
+    ],
+    "confidence": "confirmed",
+    "evidenceNote": "Exploited=true denotes observed exploitation attempts. The reporting explicitly leaves successful real-world exploitation uncertain."
+  },
+  {
+    "id": "node-security-release-2026-10-21",
+    "sourceId": "curated",
+    "title": "Node.js fixes 10 flaws across supported releases",
+    "organization": "Node.js",
+    "summary": "Four High-severity fixes include a Brotli decoder RCE issue.",
+    "description": "Node.js released security updates for the 22.x, 24.x and 26.x lines. The ten listed issues include DNS handling, certificate hostname validation, Brotli memory corruption and lower-severity permission and cryptographic concerns.",
+    "category": "Patch",
+    "severity": "high",
+    "severityBasis": "Vendor-rated: the highest severity in the October 21 Node.js release is High; individual issue severities vary.",
+    "status": "monitoring",
+    "publishedAt": "2026-10-21",
+    "updatedAt": "2026-10-23",
+    "geography": [
+      "Global"
+    ],
+    "sectors": [
+      "Technology",
+      "Cross-sector"
+    ],
+    "cves": [
+      "CVE-2026-111497",
+      "CVE-2026-105482",
+      "CVE-2026-105483",
+      "CVE-2026-106069"
+    ],
+    "tags": [
+      "Node.js",
+      "Patch available",
+      "RCE",
+      "TLS"
+    ],
+    "exploited": false,
+    "impact": [
+      "Brotli decoder memory corruption can permit remote code execution in affected applications.",
+      "DNS and certificate-validation weaknesses affect security decisions; applicability varies by API usage."
+    ],
+    "recommendations": [
+      "Upgrade affected supported lines to Node.js 22.23.4, 24.22.1 or 26.12.1, or a later security-fixed release.",
+      "Rebuild and redeploy container images and bundled runtimes; verify the running version.",
+      "Review each linked advisory for application-specific exposure; migrate unsupported runtimes."
+    ],
+    "timeline": [
+      {
+        "date": "2026-10-21",
+        "title": "Security releases available",
+        "description": "Fixes published for all three supported release lines."
+      }
+    ],
+    "sources": [
+      {
+        "name": "Node.js — October security releases",
+        "url": "https://nodejs.org/en/blog/vulnerability/october-2026-security-releases",
+        "publishedAt": "2026-10-21",
+        "kind": "primary"
+      }
+    ],
+    "confidence": "confirmed",
+    "evidenceNote": "Patch availability does not establish deployment in your environment. CVE list here highlights the four High issues; the source covers all ten. No exploitation claim is made.",
+    "technicalDetails": {
+      "affectedSystems": [
+        "Security updates are available for Node.js 22.x, 24.x and 26.x. Exact applicability differs between the individual vulnerabilities.",
+        "The fullwidth-IP TLS verification issue affects 24.x and 26.x; the highlighted Brotli and DNS issues also affect 22.x."
+      ],
+      "attackVector": [
+        "Malformed Brotli input processed by node:zlib can corrupt memory. Other fixes address mismatches between DNS resolution, input validation and TLS certificate checks."
+      ],
+      "prerequisites": [
+        "Brotli exposure requires the application to decompress attacker-controlled input. DNS and TLS exposure depends on the affected APIs and hostname handling."
+      ],
+      "detection": [
+        "Inventory deployed Node.js versions, including containers and bundled runtimes. Review untrusted decompression paths and investigate unusual process crashes without treating a crash alone as proof of exploitation."
+      ],
+      "mitigation": [
+        "Use the security releases 22.23.4, 24.22.1 or 26.12.1 for the corresponding branch, or a subsequent fixed release."
+      ],
+      "limitations": [
+        "This record highlights four High-severity CVEs; the source describes ten issues. The release notice does not establish exploitation or patch deployment in your environment."
+      ],
+      "reviewedAt": "2026-10-23"
+    }
+  },
+  {
+    "id": "php2shell-patch-2026-10-21",
+    "sourceId": "curated",
+    "title": "Emergency PHP releases address two critical RCEs",
+    "organization": "PHP",
+    "summary": "Security fixes available for PHP 8.2, 8.3, 8.4 and 8.5.",
+    "description": "The PHP project released updates for two critical vulnerabilities that can enable unauthenticated code execution under the required conditions. The PHP Foundation urges operators to update affected deployments immediately.",
+    "category": "Patch",
+    "severity": "critical",
+    "severityBasis": "PHP security team's published rating: CVSS v4.0 9.2, Critical, for both vulnerabilities.",
+    "status": "monitoring",
+    "publishedAt": "2026-10-21",
+    "updatedAt": "2026-10-21",
+    "geography": [
+      "Global"
+    ],
+    "sectors": [
+      "Cross-sector",
+      "Technology"
+    ],
+    "cves": [
+      "CVE-2026-109618",
+      "CVE-2026-109619"
+    ],
+    "tags": [
+      "PHP",
+      "Patch available",
+      "RCE",
+      "Web runtime"
+    ],
+    "exploited": false,
+    "impact": [
+      "Successful exploitation can execute code with the affected server process's privileges.",
+      "Potential application-data and credential exposure depends on process permissions and reachable resources."
+    ],
+    "recommendations": [
+      "Upgrade to PHP 8.5.12, 8.4.27, 8.3.36 or 8.2.35, or a later security-fixed release.",
+      "Use vendor-approved patched packages and restart affected services; verify the web runtime, not only the CLI binary.",
+      "Analyst guidance: inventory every deployed copy and investigate suspicious activity alongside patching."
+    ],
+    "timeline": [
+      {
+        "date": "2026-10-20",
+        "title": "Advance notice",
+        "description": "PHP announces a critical security release."
+      },
+      {
+        "date": "2026-10-21",
+        "title": "Fixes published",
+        "description": "Four supported release lines receive updates."
+      }
+    ],
+    "sources": [
+      {
+        "name": "PHP Foundation — security release",
+        "url": "https://thephp.foundation/blog/2026/10/21/todays-php-security-release-and-how-were-strengthening-php-security/",
+        "publishedAt": "2026-10-21",
+        "kind": "primary"
+      },
+      {
+        "name": "PHP — critical release announcement",
+        "url": "https://news-web.php.net/php.announce/509",
+        "publishedAt": "2026-10-20",
+        "kind": "primary"
+      }
+    ],
+    "confidence": "confirmed",
+    "evidenceNote": "This record tracks patch availability. See the separate AWS threat-activity record for attempted exploitation and the October 23 advisory for conditional follow-up guidance."
+  },
+  {
+    "id": "beyondtrust-kev-2026-10-16",
+    "sourceId": "curated",
+    "title": "BeyondTrust Remote Support flaw added to KEV",
+    "organization": "BeyondTrust",
+    "summary": "Critical origin-validation weakness is confirmed exploited.",
+    "description": "BeyondTrust's internal messaging components did not sufficiently validate message origin. A remote attacker can perform file operations on an affected Remote Support appliance. CISA added CVE-2026-102764 to its exploited-vulnerability catalog on October 16.",
+    "category": "Vulnerability",
+    "severity": "critical",
+    "severityBasis": "BeyondTrust rates BT26-05 Critical with CVSS v4.0 9.3.",
+    "status": "active",
+    "publishedAt": "2026-10-16",
+    "updatedAt": "2026-10-16",
+    "geography": [
+      "Global"
+    ],
+    "sectors": [
+      "Technology",
+      "Cross-sector"
+    ],
+    "cves": [
+      "CVE-2026-102764"
+    ],
+    "tags": [
+      "Known exploited",
+      "Authentication bypass",
+      "Remote support",
+      "Patch available"
+    ],
+    "exploited": true,
+    "impact": [
+      "Unauthorized file operations on affected remote-support appliances.",
+      "Affected product versions: Remote Support 26.2.3 and earlier."
+    ],
+    "recommendations": [
+      "Apply the BT26-05-RS patch to self-hosted Remote Support and verify successful installation.",
+      "Versions older than 24.3.1 must upgrade before applying this patch.",
+      "Analyst guidance: assess appliance exposure and investigate evidence of unauthorized changes."
+    ],
+    "timeline": [
+      {
+        "date": "2026-10-09",
+        "title": "SaaS patch completed",
+        "description": "BeyondTrust says all Remote Support SaaS customers were patched."
+      },
+      {
+        "date": "2026-10-15",
+        "title": "Vendor advisory",
+        "description": "BT26-05 published with self-hosted remediation instructions."
+      },
+      {
+        "date": "2026-10-16",
+        "title": "CISA KEV inclusion",
+        "description": "CISA confirms evidence of exploitation."
+      }
+    ],
+    "sources": [
+      {
+        "name": "BeyondTrust — BT26-05",
+        "url": "https://www.beyondtrust.com/trust-center/security-advisories/bt26-05",
+        "publishedAt": "2026-10-15",
+        "kind": "primary"
+      },
+      {
+        "name": "CISA — October 16 KEV additions",
+        "url": "https://www.cisa.gov/news-events/alerts/2026/10/16/cisa-adds-two-known-exploited-vulnerabilities-catalog",
+        "publishedAt": "2026-10-16",
+        "kind": "primary"
+      }
+    ],
+    "confidence": "confirmed",
+    "evidenceNote": "Event date is KEV inclusion, not initial vulnerability disclosure. KEV confirms exploitation somewhere; it does not establish compromise of your appliances."
+  },
+  {
+    "id": "fortinet-kev-2026-10-16",
+    "sourceId": "curated",
+    "title": "Fortinet CLI path traversal joins exploited catalog",
+    "organization": "Fortinet",
+    "summary": "Privileged file-write and deletion flaw requires remediation review.",
+    "description": "CISA added CVE-2025-61624 to KEV on October 16. The flaw affects FortiOS, FortiPAM, FortiProxy and FortiSwitchManager. An authenticated administrator with read-write permissions can abuse specific CLI commands to write or delete arbitrary files.",
+    "category": "Vulnerability",
+    "severity": "unknown",
+    "severityBasis": "CISA KEV does not assign severity scores. No vendor score is asserted in this curated record; exploitation evidence should drive prioritization.",
+    "status": "active",
+    "publishedAt": "2026-10-16",
+    "updatedAt": "2026-10-16",
+    "geography": [
+      "Global"
+    ],
+    "sectors": [
+      "Networking",
+      "Cross-sector"
+    ],
+    "cves": [
+      "CVE-2025-61624"
+    ],
+    "tags": [
+      "Known exploited",
+      "Path traversal",
+      "Network appliances",
+      "Privileged access"
+    ],
+    "exploited": true,
+    "impact": [
+      "Arbitrary file modification or deletion on affected appliances.",
+      "Exploitation requires an authenticated administrative context; this is not described as unauthenticated RCE."
+    ],
+    "recommendations": [
+      "Match installed products and versions to Fortinet advisory FG-IR-26-122 and apply its prescribed updates.",
+      "Analyst guidance: restrict administrative access and investigate unexpected CLI activity or file changes.",
+      "Assess exposure and prioritize remediation because exploitation is confirmed."
+    ],
+    "timeline": [
+      {
+        "date": "2026-10-16",
+        "title": "CISA KEV inclusion",
+        "description": "Fortinet's path-traversal vulnerability added based on exploitation evidence."
+      }
+    ],
+    "sources": [
+      {
+        "name": "CISA — October 16 KEV additions",
+        "url": "https://www.cisa.gov/news-events/alerts/2026/10/16/cisa-adds-two-known-exploited-vulnerabilities-catalog",
+        "publishedAt": "2026-10-16",
+        "kind": "primary"
+      },
+      {
+        "name": "CISA — official KEV data mirror",
+        "url": "https://github.com/cisagov/kev-data/blob/develop/known_exploited_vulnerabilities.json",
+        "publishedAt": "2026-10-21",
+        "kind": "primary"
+      },
+      {
+        "name": "Fortinet — FG-IR-26-122",
+        "url": "https://fortiguard.fortinet.com/psirt/FG-IR-26-122",
+        "publishedAt": "2026-04-14",
+        "kind": "primary"
+      }
+    ],
+    "confidence": "confirmed",
+    "evidenceNote": "Event date is KEV inclusion. The 2025 CVE identifier does not imply the catalog entry was published in 2025. Fortinet's advisory URL is also supplied by CISA's official catalog."
+  }
+]

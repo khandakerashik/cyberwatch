@@ -1,0 +1,2 @@
+# Only the live refresh server needs a package; the collector remains stdlib-only.
+waitress==3.0.2

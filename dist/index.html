@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0c1015">
+  <meta name="description" content="CyberWatch brings cyber incidents, publisher updates, Bangladesh advisories, source evidence, and collection freshness into one intelligence console.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>CyberWatch — Cyber Incident Console</title>
+  <link rel="icon" href="./cyberwatch-eagle.png" type="image/png">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./updates.css">
+  <link rel="stylesheet" href="./responsive.css">
+  <link rel="stylesheet" href="./details.css">
+  <script src="./app.js" type="module"></script>
+  <script src="./footer.js" type="module"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to intelligence feed</a>
+  <aside class="sidebar" aria-label="Main navigation">
+    <a class="brand" href="#feed" aria-label="CyberWatch home"><img src="./cyberwatch-eagle.png" width="34" height="34" alt=""><span>CYBERWATCH<small>THREAT INTELLIGENCE</small></span></a>
+    <div class="workspace-label"><span class="workspace-icon" data-icon="layers"></span><span>Security workspace<small>Global intelligence</small></span><span class="workspace-dot" aria-hidden="true"></span></div>
+    <div class="nav-label">WORKSPACE</div>
+    <nav class="primary-nav" aria-label="Workspace views">
+      <button class="nav-item active" data-view="feed" aria-label="Incident feed" aria-current="page"><span data-icon="activity"></span><span class="nav-text">Incident feed</span><span class="nav-count" id="nav-feed-count">—</span></button>
+      <button class="nav-item" data-view="newsletters" aria-label="Newsletters" title="Newsletters & updates"><span data-icon="newspaper"></span><span class="nav-text">Newsletters</span><span class="nav-count" id="nav-news-count">—</span></button>
+      <button class="nav-item" data-view="bangladesh" aria-label="Bangladesh" title="Bangladesh advisories & activity"><span data-icon="globe"></span><span class="nav-text">Bangladesh</span><span class="nav-count" id="nav-bd-count">—</span></button>
+      <button class="nav-item" data-view="watchlist" aria-label="Watchlist"><span data-icon="bookmark"></span><span class="nav-text">Watchlist</span><span class="nav-count" id="nav-saved-count">0</span></button>
+      <button class="nav-item" data-view="sources" aria-label="Sources"><span data-icon="radio"></span><span class="nav-text">Sources</span><span class="nav-count" id="nav-source-count">—</span></button>
+    </nav>
+    <div class="nav-label collections-label">COLLECTIONS</div>
+    <nav class="collection-nav" aria-label="Event collections">
+      <button data-collection="Incident"><span class="tiny-dot incident-dot"></span>Security incidents<span id="collection-incidents">—</span></button>
+      <button data-collection="Vulnerability"><span class="tiny-dot vulnerability-dot"></span>Vulnerabilities<span id="collection-vulns">—</span></button>
+      <button data-collection="Patch"><span class="tiny-dot patch-dot"></span>Security patches<span id="collection-patches">—</span></button>
+      <button data-collection="Advisory"><span class="tiny-dot advisory-dot"></span>Advisories<span id="collection-advisories">—</span></button>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="sidebar-note"><span data-icon="shield"></span><strong>Context before action.</strong><p>Trace every signal back<br>to its original source.</p><button id="methodology-open">How this feed works <span aria-hidden="true">↗</span></button></div>
+    </div>
+  </aside>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="mobile-brand" href="#feed" aria-label="CyberWatch home"><img src="./cyberwatch-eagle.png" width="28" height="28" alt=""><span>CYBERWATCH</span></a>
+      <div class="breadcrumb"><span data-icon="grid"></span><span>Workspace</span><span class="slash">/</span><strong id="breadcrumb-current">Incident feed</strong></div>
+      <div class="topbar-right"><span class="utc-clock" id="utc-clock" title="Bangladesh Standard Time · Asia/Dhaka">— BDT</span><span class="top-divider"></span><span class="snapshot-pill"><span class="tiny-dot patch-dot"></span>PUBLIC INTELLIGENCE</span></div>
+    </header>
+    <main id="main-content" tabindex="-1">
+      <section class="page-heading">
+        <div><div class="eyebrow"><span class="mini-cross" aria-hidden="true">+</span> YOUR WINDOW INTO THE THREAT LANDSCAPE</div><h1 id="page-title" tabindex="-1">Incident intelligence<span class="heading-dot">.</span></h1><p id="page-description">Recent cyber events. Verified sources. Actionable context.</p></div>
+        <div class="heading-actions"><button class="button secondary" id="export-button"><span data-icon="download"></span>Export<span class="desktop-only"> feed</span></button><button class="button primary" id="refresh-button"><span data-icon="refresh"></span>Refresh</button></div>
+      </section>
+      <p class="refresh-note" id="refresh-note" role="status" aria-live="polite">Checking refresh availability…</p>
+      <section class="freshness-bar" aria-label="Data freshness">
+        <div class="freshness-item"><span class="freshness-icon" data-icon="database"></span><div><span class="freshness-label">DATABASE UPDATED</span><time id="database-updated">Not recorded</time><span class="freshness-detail">Latest change to stored records</span></div></div>
+        <div class="freshness-item"><span class="freshness-icon" data-icon="refresh"></span><div><span class="freshness-label">LAST FEED CHECK</span><time id="feed-checked">Not recorded</time><span class="freshness-detail" id="feed-check-result">Scheduled collection · every 30 minutes</span></div></div>
+        <div class="freshness-item"><span class="freshness-icon" data-icon="clock"></span><div><span class="freshness-label">SNAPSHOT LOADED</span><time id="browser-checked">Waiting for data</time><span class="freshness-detail" id="browser-check-result">This browser · Bangladesh time (UTC+06:00)</span></div></div>
+      </section>
+      <div class="load-status" id="load-status" role="status" hidden></div>
+      <section class="stats" aria-label="Intelligence snapshot statistics" id="stats">
+        <div class="stat"><div class="stat-top"><span id="stat-total-label">TRACKED EVENTS</span><span data-icon="layers"></span></div><div class="stat-number" id="stat-total">—</div><div class="stat-foot"><span class="tiny-dot patch-dot"></span><span id="stat-total-note">Loading source snapshot</span></div></div>
+        <div class="stat"><div class="stat-top"><span id="stat-priority-label">CRITICAL & HIGH</span><span data-icon="alert"></span></div><div class="stat-number danger" id="stat-priority">—</div><div class="stat-foot" id="stat-priority-note">Priority review</div></div>
+        <div class="stat"><div class="stat-top"><span id="stat-exploited-label">KNOWN EXPLOITATION</span><span data-icon="crosshair"></span></div><div class="stat-number amber" id="stat-exploited">—</div><div class="stat-foot" id="stat-exploited-note">Reported exploitation in the wild</div></div>
+        <div class="stat"><div class="stat-top"><span id="stat-sources-label">SOURCE CHANNELS</span><span data-icon="radio"></span></div><div class="stat-number" id="stat-sources">—</div><div class="stat-foot" id="stat-sources-note">Official advisories & incident reports</div></div>
+      </section>
+      <div id="feed-view">
+        <section id="publisher-channels" class="publisher-channels" hidden aria-label="Newsletter publishers"></section>
+        <section id="bangladesh-context" class="region-context" hidden aria-label="Bangladesh coverage">
+          <div class="region-intro"><span class="bangladesh-mark" aria-hidden="true"></span><div><strong>Bangladesh cyber watch</strong><p>National advisories, documented local activity, and English newspaper headlines containing “cyber”. Publisher coverage does not establish a breach in Bangladesh.</p></div></div>
+          <div class="region-tabs" aria-label="Filter Bangladesh coverage"><button class="region-tab active" data-region-scope="all" aria-pressed="true">All Bangladesh</button><button class="region-tab" data-region-scope="national-advisory" aria-pressed="false">National advisories</button><button class="region-tab" data-region-scope="local-activity" aria-pressed="false">Local activity</button><button class="region-tab" data-region-scope="coverage" aria-pressed="false">News coverage</button></div>
+        </section>
+        <section class="feed-toolbar" aria-label="Search and filter events">
+          <div class="feed-tabs" aria-label="Event view"><button class="feed-tab active" data-feed-tab="all">All events<span id="tab-all-count">0</span></button><button class="feed-tab" data-feed-tab="priority">Critical & high<span id="tab-priority-count">0</span></button><button class="feed-tab" data-feed-tab="exploited">Exploited<span id="tab-exploited-count">0</span></button></div>
+          <div class="filter-row"><div class="search-controls"><label class="search-box"><span data-icon="search"></span><input id="search-input" type="search" placeholder="Search events, CVEs, organizations…" autocomplete="off" aria-label="Search events, CVEs, and organizations"><kbd>/</kbd></label><button class="icon-button" id="reset-filters" title="Clear all filters" aria-label="Clear all filters"><span data-icon="reset"></span></button></div><label class="select-box publisher-select" id="publisher-filter-wrap" hidden><span data-icon="radio"></span><select id="publisher-filter" aria-label="Filter by publisher"><option value="all">All publishers</option></select></label><label class="select-box" id="severity-filter-wrap"><span data-icon="filter"></span><select id="severity-filter" aria-label="Filter by severity"><option value="all">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="unknown">Unrated</option></select></label><label class="select-box"><span data-icon="calendar"></span><select id="period-filter" aria-label="Filter by publication date"><option value="all">All dates</option><option value="24h">Last 24 hours</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option></select></label></div>
+        </section>
+        <div class="content-grid">
+          <section class="console-panel" aria-labelledby="console-title">
+            <div class="console-titlebar"><div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div><span id="console-title">incident-stream.log</span><div class="console-counter"><span class="tiny-dot patch-dot"></span><span id="result-count">LOADING</span></div></div>
+            <div class="table-controls"><div id="active-filters" class="active-filters">LATEST INTELLIGENCE</div><label class="sort-label">Sort:<select id="sort-select" aria-label="Sort events"><option value="newest">Newest first</option><option value="updated">Recently updated</option><option value="severity">Severity</option></select></label></div>
+            <div class="event-column-labels" aria-hidden="true"><span>PUBLISHED</span><span>SEVERITY</span><span>EVENT / ORGANIZATION</span><span>SOURCES</span><span></span></div>
+            <div id="event-list" class="event-list" aria-live="polite" aria-busy="true"><div class="loading-state"><span class="loader"></span><span>Reading intelligence snapshot…</span></div></div>
+            <div class="console-footer"><span><b aria-hidden="true">$</b><span id="console-footer-text">Connecting to source snapshot</span><span class="cursor" aria-hidden="true"></span></span><button id="load-more" hidden>Load more <span aria-hidden="true">↓</span></button></div>
+          </section>
+          <aside class="intel-sidebar" aria-label="Intelligence insights">
+            <section class="brief-card"><div class="section-kicker"><span data-icon="crosshair"></span><span id="radar-title">ON YOUR RADAR</span></div><div id="priority-brief"><div class="brief-placeholder">A clearer view of<br>what needs attention.</div></div></section>
+            <section class="insight-card"><div class="panel-heading"><h2>Signal breakdown</h2><span class="small-mono">SNAPSHOT</span></div><div id="signal-breakdown"></div><div class="insight-caption">By event type · full feed</div></section>
+            <section class="insight-card source-health-card"><div class="panel-heading"><h2>Source status</h2><button class="text-button" data-view="sources" aria-label="View all sources">View all <span aria-hidden="true">↗</span></button></div><div id="source-health"></div><div class="source-refresh-note"><span data-icon="clock"></span><span id="snapshot-time">Checking collection time…</span></div></section>
+            <div class="evidence-note"><span data-icon="info"></span><p>Severity is source-rated or clearly marked as analyst-assessed. Unrated does not mean low risk.</p></div>
+          </aside>
+        </div>
+      </div>
+      <section id="sources-view" hidden aria-label="Intelligence sources"><div class="sources-intro"><div><h2>Intelligence with a paper trail.</h2><p>Inspect each collection channel and open the original publishers. Event details include direct evidence links.</p></div><span class="source-type-label">SOURCE TRANSPARENCY</span></div><div id="source-cards" class="source-cards"></div><div class="provenance-panel"><span data-icon="info"></span><div><strong>Collection status describes the last published snapshot.</strong><p>The included GitHub Actions workflow checks configured feeds every 30 minutes. The live server also collects every 30 minutes and starts a new check when Refresh is selected. Database updated records a content change; Last feed check records a collection attempt. Snapshot loaded records this browser’s successful download. With the live service connected, Refresh collects from publishers immediately. A static-only host can reload its latest published snapshot. Failed channels retain their previous records and last successful check.</p></div></div></section>
+      <footer class="page-footer" role="contentinfo" aria-label="CyberWatch credits">
+        <div class="footer-identity"><img src="./cyberwatch-eagle.png" width="20" height="20" alt=""><span>CYBERWATCH <span class="footer-slash">/</span> Intelligence, with context.</span></div>
+        <p class="footer-credit">Developed by <strong>Khandaker Ashikul Hoque</strong></p>
+        <button id="shortcuts-open" aria-label="About CyberWatch and keyboard shortcuts" title="About CyberWatch and keyboard shortcuts"><span data-icon="info"></span><span class="footer-about-label">About & shortcuts</span></button>
+      </footer>
+    </main>
+  </div>
+  <dialog id="event-dialog" class="event-dialog" aria-labelledby="detail-title"><div class="detail-shell"><div class="detail-topbar"><span class="small-mono"><span class="tiny-dot patch-dot"></span> EVENT INTELLIGENCE</span><div class="detail-top-actions"><button class="icon-button" id="detail-bookmark" aria-label="Save event to watchlist"><span data-icon="bookmark"></span></button><button class="icon-button" id="detail-close" aria-label="Close event details"><span data-icon="close"></span></button></div></div><div class="detail-scroll" id="detail-scroll"><div id="detail-header"></div><div class="detail-tabs" role="tablist" aria-label="Event detail sections"><button id="detail-tab-overview" role="tab" aria-selected="true" aria-controls="detail-panel" data-detail-tab="overview" tabindex="0">Overview</button><button id="detail-tab-timeline" role="tab" aria-selected="false" aria-controls="detail-panel" data-detail-tab="timeline" tabindex="-1">Timeline</button><button id="detail-tab-evidence" role="tab" aria-selected="false" aria-controls="detail-panel" data-detail-tab="evidence" tabindex="-1">Sources & evidence</button></div><div id="detail-panel" class="detail-panel" role="tabpanel" aria-labelledby="detail-tab-overview" tabindex="0"></div></div><div class="detail-footer"><span id="detail-footer-note">Source-backed intelligence</span><button class="button secondary" id="copy-brief"><span data-icon="copy"></span>Copy brief</button></div></div></dialog>
+  <dialog id="info-dialog" class="info-dialog" aria-labelledby="info-title"><div class="info-header"><span class="eyebrow">ABOUT THE FEED</span><button class="icon-button" id="info-close" aria-label="Close information"><span data-icon="close"></span></button></div><h2 id="info-title">A signal is the start.<br>Context is what matters.</h2><p>CyberWatch brings incident reports, security advisories, publisher updates, and Bangladesh cyber activity into one source-backed console.</p><div class="methodology-list"><section><span>01</span><div><h3>Original sources, visible evidence</h3><p>Official feeds are collected alongside researched incident reports. Each event links back to its sources. A vulnerability entry does not imply an organization was breached.</p></div></section><section><span>02</span><div><h3>Severity with a reason</h3><p>Source ratings are preserved where available. Any analyst-assessed severity is identified in the event. CISA KEV inclusion establishes known exploitation, not a CVSS score or exposure in your environment.</p></div></section><section><span>03</span><div><h3>Publication time ≠ collection time</h3><p>Dates and timestamps are displayed in Bangladesh Standard Time (BDT, UTC+06:00). Date-only sources keep their original calendar date. Scheduled collection runs every 30 minutes. On the live server, Refresh starts a publisher check immediately and loads the result when complete. A static GitHub Pages deployment can reload published snapshots; connect the live service for on-demand collection. Database update, feed check, and browser load times remain separate.</p></div></section><section><span>04</span><div><h3>Your workspace stays in your browser</h3><p>Watchlist selections are stored locally on this device. They are not synchronized between users or browsers. Export downloads the currently filtered event list as CSV.</p></div></section></div><p class="keyboard-help"><strong>Keyboard shortcuts</strong><br><kbd>/</kbd> Search &nbsp; <kbd>Esc</kbd> Close a dialog &nbsp; <kbd>Tab</kbd> Move between controls. Use arrow keys to switch detail tabs.</p><p></p><button class="button primary" id="info-done">Back to intelligence <span data-icon="arrow"></span></button></dialog>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <noscript><div class="no-script">CyberWatch needs JavaScript enabled to display and filter intelligence. The underlying records are available in <a href="./data/incidents.json">data/incidents.json</a>.</div></noscript>
+</body>
+</html>

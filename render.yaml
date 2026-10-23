@@ -1,0 +1,26 @@
+# Full app deployment from this GitHub repository.
+# This blueprint selects a PAID, always-on Starter service and a persistent disk.
+# Free sleeping instances cannot run the unattended 30-minute scheduler reliably.
+# The native Python runtime manages persistent-disk permissions for its user.
+# The separate Dockerfile remains available for other container hosts.
+# Keep one instance: collection coordination is intentionally single-process.
+services:
+  - type: web
+    name: cyberwatch
+    runtime: python
+    plan: starter
+    numInstances: 1
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m server.app --host 0.0.0.0
+    healthCheckPath: /healthz
+    envVars:
+      - key: CYBERWATCH_DATA_DIR
+        value: /var/data/cyberwatch
+      # Set to your exact GitHub Pages origin only if it uses this API remotely.
+      # Same-origin visitors do not need an allowlist entry.
+      - key: CYBERWATCH_ALLOWED_ORIGINS
+        value: ""
+    disk:
+      name: cyberwatch-data
+      mountPath: /var/data
+      sizeGB: 1
