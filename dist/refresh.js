@@ -2,7 +2,7 @@
  * timestamps in the browser. GitHub Pages alone remains an explicit static mode. */
 
 const CONTROL_LIMIT = 64 * 1024;
-const SNAPSHOT_LIMIT = 8 * 1024 * 1024;
+const SNAPSHOT_LIMIT = 32 * 1024 * 1024;
 const JOB_STATES = new Set(['idle', 'running', 'succeeded', 'partial', 'failed']);
 
 export class RefreshError extends Error {
@@ -109,7 +109,7 @@ function pause(milliseconds, signal) {
  */
 export function createFeedClient({
   baseURL = new URL('./', import.meta.url), apiBase = 'auto', fetchImpl = globalThis.fetch,
-  requestTimeoutMs = 15000, refreshTimeoutMs = 180000, pollIntervalMs = 1000,
+  requestTimeoutMs = 15000, refreshTimeoutMs = 330000, pollIntervalMs = 1000,
   sleep = pause, now = Date.now,
 } = {}) {
   const appBase = backendBase(baseURL, { allowSameOriginHTTP: true });

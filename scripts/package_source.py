@@ -6,9 +6,9 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / 'dist' / 'cyberwatch.zip'
-ROOT_FILES = {'README.md', 'package.json', '.gitignore', '.python-version', 'requirements.txt', 'Dockerfile', '.dockerignore', 'render.yaml'}
+ROOT_FILES = {'README.md', 'UPGRADE.md', 'CHANGELOG.md', 'VALIDATION.md', 'THIRD_PARTY_NOTICES.md', 'package.json', '.gitignore', '.python-version', 'requirements.txt', 'Dockerfile', '.dockerignore', 'render.yaml'}
 DIRECTORIES = ('dist', 'data', 'scripts', 'server', 'tests', '.github')
-ALLOWED_SUFFIXES = {'.html', '.css', '.js', '.mjs', '.json', '.svg', '.png', '.py', '.yml', '.yaml', '.md'}
+ALLOWED_SUFFIXES = {'.html', '.css', '.js', '.mjs', '.json', '.svg', '.png', '.py', '.yml', '.yaml', '.md', '.txt'}
 
 
 def package():

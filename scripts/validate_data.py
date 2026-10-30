@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import ipaddress
 import json
 from pathlib import Path
 import re
@@ -39,6 +40,47 @@ def strings(value, label, maximum=100):
     require(all(isinstance(item, str) and len(item) <= 10000 for item in value), f"{label} must contain bounded strings")
 
 
+def image_link(value):
+    """Image metadata must not point browsers at local services or executable URLs."""
+    link(value)
+    parsed = urlsplit(value)
+    host = parsed.hostname.lower().rstrip(".")
+    require(parsed.scheme == "https" and parsed.port in {None, 443}, "Images require public HTTPS URLs")
+    require("\\" not in value and not re.search(r"[<>\"']", value), "Unsafe image URL")
+    require(host != "localhost" and "." in host and not host.endswith((".localhost", ".local", ".internal", ".test", ".invalid")),
+            "Images cannot target local hostnames")
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        require(bool(re.fullmatch(r"[a-z0-9.-]+", host)) and not host.isdigit(), "Unsafe image hostname")
+        require(not re.fullmatch(r"[0-9.]+", host), "Noncanonical IP address is not allowed")
+    else:
+        require(address.is_global, "Images cannot target private or reserved addresses")
+
+
+def validate_article(article):
+    require(isinstance(article, dict), "article must be an object")
+    require(article.get("status") in {"full", "excerpt", "unavailable", "restricted"}, "Invalid article availability")
+    require(article.get("origin") in {"feed", "publisher"}, "Invalid article origin")
+    paragraphs = article.get("paragraphs", [])
+    require(isinstance(paragraphs, list) and len(paragraphs) <= 120, "Article paragraphs must be bounded")
+    require(all(isinstance(value, str) and value.strip() and len(value) <= 4000 for value in paragraphs),
+            "Invalid article paragraph")
+    require(sum(len(value) for value in paragraphs) <= 100000, "Article exceeds the text limit")
+    require(article.get("status") != "full" or bool(paragraphs), "A full article requires readable text")
+    images = article.get("images", [])
+    require(isinstance(images, list) and len(images) <= 6, "Article images must be bounded")
+    for item in images:
+        require(isinstance(item, dict), "Invalid article image")
+        image_link(item.get("url"))
+        for field in ("alt", "caption", "credit"):
+            require(isinstance(item.get(field, ""), str) and len(item.get(field, "")) <= 2000,
+                    f"Invalid article image {field}")
+    require(isinstance(article.get("note", ""), str) and len(article.get("note", "")) <= 2000, "Invalid article note")
+    if article.get("fetchedAt") is not None:
+        date(article["fetchedAt"])
+
+
 def validate_event(event):
     require(isinstance(event, dict), "Each event must be an object")
     require(isinstance(event.get("id"), str) and re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", event["id"]), "Invalid event id")
@@ -47,6 +89,22 @@ def validate_event(event):
     require(event.get("severity") in {"critical", "high", "medium", "low", "unknown"}, "Invalid severity")
     require(event.get("category") in {"Incident", "Vulnerability", "Advisory", "Patch", "News"}, "Invalid category")
     require(event.get("stream", "news" if event.get("category") == "News" else "intelligence") in {"intelligence", "news"}, "Invalid event stream")
+    require(event.get("sourceType") in {None, "mainstream", "security", "vendor", "government"}, "Invalid event source type")
+    if "newsRelevance" in event:
+        decision = event["newsRelevance"]
+        require(isinstance(decision, dict), "newsRelevance must be an object")
+        require(type(decision.get("version")) is int and decision["version"] == 1, "Unsupported news relevance version")
+        require(isinstance(decision.get("relevant"), bool), "News relevance must be a boolean")
+        values = decision.get("matchedKeywords")
+        require(isinstance(values, list) and len(values) <= 40 and
+                all(isinstance(value, str) and value.strip() and len(value) <= 100 for value in values), "Invalid relevance keywords")
+        require(isinstance(decision.get("reason"), str) and 0 < len(decision["reason"]) <= 500, "Invalid relevance reason")
+    for field in ("matchedKeywords", "newsTopics"):
+        if field in event:
+            strings(event[field], field, maximum=40)
+            require(all(value.strip() and len(value) <= 100 for value in event[field]), f"Invalid {field}")
+    if event.get("article") is not None:
+        validate_article(event["article"])
     require(event.get("bangladeshScope") in {None, "national-advisory", "local-activity", "coverage"}, "Invalid Bangladesh scope")
     require(event.get("status") in {"investigating", "active", "mitigated", "resolved", "monitoring"}, "Invalid status")
     require(event.get("confidence") in {"confirmed", "reported"}, "Invalid confidence")
@@ -93,15 +151,16 @@ def validate_snapshot(data):
         if field in data:
             require(isinstance(data[field], str) and "T" in data[field], f"{field} must include a full timestamp")
             require(date(data[field]) <= date(data["generatedAt"]), f"{field} cannot be later than snapshot generation")
-    require(isinstance(data.get("events"), list) and len(data["events"]) <= 500, "Invalid event list")
-    require(isinstance(data.get("sources"), list), "Missing source registry")
+    require(isinstance(data.get("events"), list) and len(data["events"]) <= 2000, "Invalid event list")
+    require(isinstance(data.get("sources"), list) and len(data["sources"]) <= 200, "Missing or oversized source registry")
     source_ids = set()
     for source in data["sources"]:
         require(isinstance(source.get("id"), str) and source["id"] not in source_ids, "Duplicate or invalid source id")
         source_ids.add(source["id"])
         require(source.get("status") in {"ok", "error", "snapshot"}, "Invalid source status")
         require(source.get("kind") in {"primary", "secondary", "curated"}, "Invalid source kind")
-        require(source.get("group", "intelligence") in {"intelligence", "news", "bangladesh"}, "Invalid source group")
+        require(source.get("group", "intelligence") in {"intelligence", "news", "bangladesh", "newsboard"}, "Invalid source group")
+        require(source.get("sourceType") in {None, "mainstream", "security", "vendor", "government"}, "Invalid source type")
         require(isinstance(source.get("itemCount"), int) and source["itemCount"] >= 0, "Invalid source item count")
         if source.get("url") is not None:
             link(source["url"])

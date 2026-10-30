@@ -1,0 +1,512 @@
+{
+  "version": 1,
+  "additionalKeywords": [],
+  "excludeKeywords": [],
+  "sources": [
+    {
+      "id": "bbc-technology",
+      "name": "BBC · Technology",
+      "url": "https://www.bbc.com/news/technology",
+      "feedUrls": [
+        "https://feeds.bbci.co.uk/news/technology/rss.xml"
+      ],
+      "format": "rss",
+      "group": "newsboard",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "mainstream",
+      "keywordFilter": true,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Public BBC · Technology feed, filtered for cybersecurity, hacking, breaches and related keywords. Headlines and available excerpts retain publisher attribution; full articles require publisher permission."
+    },
+    {
+      "id": "bbc-world",
+      "name": "BBC · World",
+      "url": "https://www.bbc.com/news/world",
+      "feedUrls": [
+        "https://feeds.bbci.co.uk/news/world/rss.xml"
+      ],
+      "format": "rss",
+      "group": "newsboard",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "mainstream",
+      "keywordFilter": true,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Public BBC · World feed, filtered for cybersecurity, hacking, breaches and related keywords. Headlines and available excerpts retain publisher attribution; full articles require publisher permission."
+    },
+    {
+      "id": "bbc-business",
+      "name": "BBC · Business",
+      "url": "https://www.bbc.com/news/business",
+      "feedUrls": [
+        "https://feeds.bbci.co.uk/news/business/rss.xml"
+      ],
+      "format": "rss",
+      "group": "newsboard",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "mainstream",
+      "keywordFilter": true,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Public BBC · Business feed, filtered for cybersecurity, hacking, breaches and related keywords. Headlines and available excerpts retain publisher attribution; full articles require publisher permission."
+    },
+    {
+      "id": "washington-post-technology",
+      "name": "The Washington Post · Technology",
+      "url": "https://www.washingtonpost.com/technology/",
+      "feedUrls": [
+        "https://www.washingtonpost.com/arcio/rss/category/technology/"
+      ],
+      "format": "rss",
+      "group": "newsboard",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "mainstream",
+      "keywordFilter": true,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Public The Washington Post · Technology feed, filtered for cybersecurity, hacking, breaches and related keywords. Headlines and available excerpts retain publisher attribution; full articles require publisher permission.",
+      "sourceDirectory": "https://www.washingtonpost.com/information/2026/05/21/washington-post-rss-feeds/"
+    },
+    {
+      "id": "washington-post-world",
+      "name": "The Washington Post · World",
+      "url": "https://www.washingtonpost.com/world/",
+      "feedUrls": [
+        "https://www.washingtonpost.com/arcio/rss/category/world/"
+      ],
+      "format": "rss",
+      "group": "newsboard",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "mainstream",
+      "keywordFilter": true,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Public The Washington Post · World feed, filtered for cybersecurity, hacking, breaches and related keywords. Headlines and available excerpts retain publisher attribution; full articles require publisher permission.",
+      "sourceDirectory": "https://www.washingtonpost.com/information/2026/05/21/washington-post-rss-feeds/"
+    },
+    {
+      "id": "washington-post-business",
+      "name": "The Washington Post · Business",
+      "url": "https://www.washingtonpost.com/business/",
+      "feedUrls": [
+        "https://www.washingtonpost.com/arcio/rss/category/business/"
+      ],
+      "format": "rss",
+      "group": "newsboard",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "mainstream",
+      "keywordFilter": true,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Public Washington Post business news, filtered for cybersecurity, hacking and software compromise; publisher excerpts and original article links.",
+      "sourceDirectory": "https://www.washingtonpost.com/information/2026/05/21/washington-post-rss-feeds/"
+    },
+    {
+      "id": "guardian-security",
+      "name": "The Guardian · Data and computer security",
+      "url": "https://www.theguardian.com/technology/data-computer-security",
+      "feedUrls": [
+        "https://www.theguardian.com/technology/data-computer-security/rss"
+      ],
+      "format": "rss",
+      "group": "newsboard",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "mainstream",
+      "keywordFilter": true,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Public The Guardian · Data and computer security feed, filtered for cybersecurity, hacking, breaches and related keywords. Headlines and available excerpts retain publisher attribution; full articles require publisher permission."
+    },
+    {
+      "id": "sky-technology",
+      "name": "Sky News · Technology",
+      "url": "https://news.sky.com/technology",
+      "feedUrls": [
+        "https://feeds.skynews.com/feeds/rss/technology.xml"
+      ],
+      "format": "rss",
+      "group": "newsboard",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "mainstream",
+      "keywordFilter": true,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Public Sky News · Technology feed, filtered for cybersecurity, hacking, breaches and related keywords. Headlines and available excerpts retain publisher attribution; full articles require publisher permission."
+    },
+    {
+      "id": "al-jazeera",
+      "name": "Al Jazeera · World",
+      "url": "https://www.aljazeera.com/",
+      "feedUrls": [
+        "https://www.aljazeera.com/xml/rss/all.xml"
+      ],
+      "format": "rss",
+      "group": "newsboard",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "mainstream",
+      "keywordFilter": true,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Public Al Jazeera · World feed, filtered for cybersecurity, hacking, breaches and related keywords. Headlines and available excerpts retain publisher attribution; full articles require publisher permission."
+    },
+    {
+      "id": "npr-technology",
+      "name": "NPR · Technology",
+      "url": "https://www.npr.org/sections/technology/",
+      "feedUrls": [
+        "https://feeds.npr.org/1019/rss.xml"
+      ],
+      "format": "rss",
+      "group": "newsboard",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "mainstream",
+      "keywordFilter": true,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Public NPR · Technology feed, filtered for cybersecurity, hacking, breaches and related keywords. Headlines and available excerpts retain publisher attribution; full articles require publisher permission."
+    },
+    {
+      "id": "deutsche-welle",
+      "name": "Deutsche Welle · World",
+      "url": "https://www.dw.com/en/",
+      "feedUrls": [
+        "https://rss.dw.com/rdf/rss-en-all"
+      ],
+      "format": "auto",
+      "group": "newsboard",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "mainstream",
+      "keywordFilter": true,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Public Deutsche Welle · World feed, filtered for cybersecurity, hacking, breaches and related keywords. Headlines and available excerpts retain publisher attribution; full articles require publisher permission."
+    },
+    {
+      "id": "france24",
+      "name": "France 24 · World",
+      "url": "https://www.france24.com/en/",
+      "feedUrls": [
+        "https://www.france24.com/en/rss"
+      ],
+      "format": "rss",
+      "group": "newsboard",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "mainstream",
+      "keywordFilter": true,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Public France 24 · World feed, filtered for cybersecurity, hacking, breaches and related keywords. Headlines and available excerpts retain publisher attribution; full articles require publisher permission."
+    },
+    {
+      "id": "abc-australia",
+      "name": "ABC Australia · Technology",
+      "url": "https://www.abc.net.au/news/technology",
+      "feedUrls": [
+        "https://www.abc.net.au/news/feed/45910/rss.xml"
+      ],
+      "format": "rss",
+      "group": "newsboard",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "mainstream",
+      "keywordFilter": true,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Public ABC Australia · Technology feed, filtered for cybersecurity, hacking, breaches and related keywords. Headlines and available excerpts retain publisher attribution; full articles require publisher permission."
+    },
+    {
+      "id": "nyt-technology",
+      "name": "The New York Times · Technology",
+      "url": "https://www.nytimes.com/section/technology",
+      "feedUrls": [
+        "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml"
+      ],
+      "format": "rss",
+      "group": "newsboard",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "mainstream",
+      "keywordFilter": true,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Public The New York Times · Technology feed, filtered for cybersecurity, hacking, breaches and related keywords. Headlines and available excerpts retain publisher attribution; full articles require publisher permission."
+    },
+    {
+      "id": "the-record",
+      "name": "The Record",
+      "url": "https://therecord.media/",
+      "feedUrls": [
+        "https://therecord.media/feed"
+      ],
+      "format": "rss",
+      "group": "news",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "security",
+      "keywordFilter": false,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Specialist cybersecurity reporting, incident coverage and security research from The Record."
+    },
+    {
+      "id": "the-register",
+      "name": "The Register · Security",
+      "url": "https://www.theregister.com/security/",
+      "feedUrls": [
+        "https://www.theregister.com/security/headlines.atom"
+      ],
+      "format": "auto",
+      "group": "news",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "security",
+      "keywordFilter": false,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "redirectHosts": [
+        "api.theregister.com"
+      ],
+      "description": "Specialist cybersecurity reporting, incident coverage and security research from The Register · Security."
+    },
+    {
+      "id": "dark-reading",
+      "name": "Dark Reading",
+      "url": "https://www.darkreading.com/",
+      "feedUrls": [
+        "https://www.darkreading.com/rss.xml"
+      ],
+      "format": "rss",
+      "group": "news",
+      "stream": "news",
+      "kind": "secondary",
+      "sourceType": "security",
+      "keywordFilter": false,
+      "retentionDays": 30,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Specialist cybersecurity reporting, incident coverage and security research from Dark Reading."
+    },
+    {
+      "id": "nginx",
+      "name": "NGINX · Security advisories",
+      "url": "https://nginx.org/en/security_advisories.html",
+      "feedUrls": [
+        "https://nginx.org/en/security_advisories.html"
+      ],
+      "format": "nginx",
+      "group": "intelligence",
+      "stream": "intelligence",
+      "kind": "primary",
+      "sourceType": "vendor",
+      "keywordFilter": false,
+      "retentionDays": 365,
+      "maxItems": 20,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "changesUrl": "https://nginx.org/en/CHANGES",
+      "organization": "NGINX",
+      "description": "Official NGINX security notices. Vendor publications are advisories, not evidence of a confirmed breach. Dates retain their documented source meaning."
+    },
+    {
+      "id": "python-security",
+      "name": "Python · Security advisories",
+      "url": "https://www.python.org/dev/security/",
+      "feedUrls": [
+        "https://mail.python.org/archives/list/security-announce@python.org/feed/"
+      ],
+      "format": "rss",
+      "group": "intelligence",
+      "stream": "intelligence",
+      "kind": "primary",
+      "sourceType": "vendor",
+      "keywordFilter": false,
+      "retentionDays": 365,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "organization": "Python",
+      "description": "Official Python security notices. Vendor publications are advisories, not evidence of a confirmed breach. Dates retain their documented source meaning."
+    },
+    {
+      "id": "python-releases",
+      "name": "Python · Security releases",
+      "url": "https://blog.python.org/",
+      "feedUrls": [
+        "https://blog.python.org/feeds/posts/default?alt=rss"
+      ],
+      "format": "rss",
+      "group": "intelligence",
+      "stream": "intelligence",
+      "kind": "primary",
+      "sourceType": "vendor",
+      "keywordFilter": false,
+      "retentionDays": 365,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "securityOnly": true,
+      "organization": "Python",
+      "description": "Official Python security notices. Vendor publications are advisories, not evidence of a confirmed breach. Dates retain their documented source meaning."
+    },
+    {
+      "id": "gitlab-security",
+      "name": "GitLab · Security releases",
+      "url": "https://about.gitlab.com/releases/categories/releases/",
+      "feedUrls": [
+        "https://docs.gitlab.com/releases/patch-releases.xml"
+      ],
+      "format": "atom",
+      "group": "intelligence",
+      "stream": "intelligence",
+      "kind": "primary",
+      "sourceType": "vendor",
+      "keywordFilter": false,
+      "retentionDays": 365,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": true,
+        "allowedHosts": [
+          "docs.gitlab.com"
+        ],
+        "license": "GitLab documentation: CC BY-SA 4.0; retain attribution and source links."
+      },
+      "securityOnly": true,
+      "organization": "GitLab",
+      "description": "Official GitLab security notices. Vendor publications are advisories, not evidence of a confirmed breach. Dates retain their documented source meaning."
+    },
+    {
+      "id": "nodejs-security",
+      "name": "Node.js · Security advisories",
+      "url": "https://nodejs.org/en/blog/vulnerability",
+      "feedUrls": [
+        "https://nodejs.org/en/feed/blog.xml"
+      ],
+      "format": "rss",
+      "group": "intelligence",
+      "stream": "intelligence",
+      "kind": "primary",
+      "sourceType": "vendor",
+      "keywordFilter": false,
+      "retentionDays": 365,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": true,
+        "allowedHosts": [
+          "nodejs.org"
+        ],
+        "license": "Node.js website repository: MIT; retain attribution and source links."
+      },
+      "securityOnly": true,
+      "organization": "Node.js",
+      "description": "Official Node.js security notices. Vendor publications are advisories, not evidence of a confirmed breach. Dates retain their documented source meaning."
+    },
+    {
+      "id": "ubuntu-security",
+      "name": "Ubuntu · Security notices",
+      "url": "https://ubuntu.com/security/notices",
+      "feedUrls": [
+        "https://ubuntu.com/security/notices/rss.xml"
+      ],
+      "format": "rss",
+      "group": "intelligence",
+      "stream": "intelligence",
+      "kind": "primary",
+      "sourceType": "vendor",
+      "keywordFilter": false,
+      "retentionDays": 365,
+      "maxItems": 30,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "organization": "Ubuntu",
+      "description": "Official Ubuntu security notices. Vendor publications are advisories, not evidence of a confirmed breach. Dates retain their documented source meaning."
+    },
+    {
+      "id": "php-security",
+      "name": "PHP · Security releases",
+      "url": "https://www.php.net/",
+      "feedUrls": [
+        "https://www.php.net/feed.atom"
+      ],
+      "format": "atom",
+      "group": "intelligence",
+      "stream": "intelligence",
+      "kind": "primary",
+      "sourceType": "vendor",
+      "securityOnly": true,
+      "organization": "PHP",
+      "retentionDays": 365,
+      "maxItems": 20,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "description": "Official PHP releases that explicitly announce security fixes or CVEs; dated vendor notices remain separate from incident claims."
+    }
+  ]
+}

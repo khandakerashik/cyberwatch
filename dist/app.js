@@ -1,4 +1,4 @@
-import { escapeHTML as h, safeURL, normalizeData, filterEvents, isNewsEvent, isBangladeshEvent, makeCSV, makeBrief, cveURL, relatedEvents } from './core.js';
+import { escapeHTML as h, safeURL, safeImageURL, normalizeData, filterEvents, isNewsEvent, isNewsboardEvent, eventSourceType, isBangladeshEvent, makeCSV, makeBrief, cveURL, relatedEvents } from './core.js';
 import { createFeedClient } from './refresh.js';
 
 const $ = selector => document.querySelector(selector);
@@ -36,7 +36,7 @@ const icon = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] 
 function hydrateIcons(root = document) { root.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = icon(el.dataset.icon); }); }
 hydrateIcons();
 
-const state = {data:null,view:'feed',query:'',severity:'all',category:'all',period:'all',source:'all',regionScope:'all',sort:'newest',tab:'all',limit:12,selectedId:null,detailTab:'overview',saved:new Set(),loading:false,browserCheckedAt:null,browserAttemptAt:null,refreshFailed:false};
+const state = {data:null,view:'feed',query:'',severity:'all',category:'all',period:'all',source:'all',regionScope:'all',newsScope:'all',newsTopic:'all',sort:'newest',tab:'all',limit:12,selectedId:null,detailTab:'overview',saved:new Set(),loading:false,browserCheckedAt:null,browserAttemptAt:null,refreshFailed:false};
 Object.assign(state,{initializing:true,collecting:false,collectionMessage:'',collectionWarning:false,configurationWarning:'',collectionNoticeUntil:0});
 let feedClient;
 // Retain the established storage key so renaming the app preserves saved events.
@@ -62,11 +62,16 @@ const severityText = severity => severity === 'unknown' ? 'UNRATED' : severity.t
 const severityBadge = severity => `<span class="badge severity-${h(severity)}">${h(severityText(severity))}</span>`;
 const eventBadge = event => isNewsEvent(event) ? '<span class="badge news-badge">UPDATE</span>' : severityBadge(event.severity);
 const scopeLabels = {'national-advisory':'National advisory','local-activity':'Local activity',coverage:'News coverage'};
+const newsScopeLabels = {all:'All coverage',mainstream:'World press',security:'Cybersecurity',advisories:'Advisories'};
+const newsTopicLabels = {all:'All topics',hack:'Hacking',cyberattack:'Cyberattacks',breach:'Data breaches',ransomware:'Ransomware',malware:'Malware',phishing:'Phishing','zero-day':'Zero-days',ddos:'DDoS',vulnerability:'Vulnerabilities'};
+const sourceTypeLabels = {mainstream:'World press',security:'Cybersecurity',vendor:'Vendor publication',government:'Government advisory'};
+const readerLabels = {full:'Full text',excerpt:'Excerpt',restricted:'Publisher access',unavailable:'Source link'};
 const initials = organization => organization.replace(/[^a-z0-9]/gi,'').slice(0,2).toUpperCase() || 'SI';
 const countFormat = count => String(count).padStart(2,'0');
 const sourceState = source => source.status === 'ok' ? 'COLLECTED' : source.status === 'error' ? 'FETCH ERROR' : 'REVIEWED';
 function sourceDescription(source) {
   if (source.description) return source.description;
+  if (source.group === 'newsboard') return 'Worldwide news reporting selected for cybersecurity topics. Articles retain their publisher, original publication date and source link.';
   if (source.group === 'news') return 'Public publisher updates and short feed excerpts. Open the original article for the complete report; an article is not an independently verified incident.';
   if (source.group === 'bangladesh') return 'Bangladesh advisories and documented cyber activity. The record identifies whether it is a national advisory, a local activity report, or news coverage.';
   if (source.kind === 'curated') return 'Researched incident reports and vendor disclosures with event-specific impact, recommendations, and evidence notes. Each report links to its original evidence.';
@@ -89,7 +94,7 @@ function scopedEvents() {
 function scopedSources(events=scopedEvents()) {
   const ids=new Set(events.map(event=>event.sourceId));
   if(state.view==='sources')return state.data.sources;
-  return state.data.sources.filter(source=>ids.has(source.id) || (state.view==='newsletters'&&source.group==='news') || (state.view==='bangladesh'&&source.group==='bangladesh') || (state.view==='feed'&&source.group==='intelligence'));
+  return state.data.sources.filter(source=>ids.has(source.id) || (state.view==='newsboard'&&source.kind!=='curated') || (state.view==='newsletters'&&source.group==='news') || (state.view==='bangladesh'&&source.group==='bangladesh') || (state.view==='feed'&&source.group==='intelligence'));
 }
 function renderFreshness() {
   const writeTime=(id,value,empty='Not recorded')=>{const el=$(id);el.textContent=value?fullTimestamp(value):empty;if(value){el.dateTime=value;el.title=value;}else{el.removeAttribute('datetime');el.removeAttribute('title');}};
@@ -108,24 +113,26 @@ function renderStats() {
   const events=scopedEvents(),sources=scopedSources(events),all=state.data.events;
   const priority = events.filter(event => ['critical','high'].includes(event.severity)).length;
   const exploited = events.filter(event => event.exploited).length;
-  const news=state.view==='newsletters',bd=state.view==='bangladesh';
-  $('#stat-total-label').textContent=news?'PUBLISHER UPDATES':bd?'BANGLADESH RECORDS':'TRACKED EVENTS';
+  const news=['newsletters','newsboard'].includes(state.view),board=state.view==='newsboard',bd=state.view==='bangladesh';
+  $('#stat-total-label').textContent=board?'NEWS & ADVISORIES':news?'PUBLISHER UPDATES':bd?'BANGLADESH RECORDS':'TRACKED EVENTS';
   $('#stat-priority-label').textContent=news?'PUBLISHED · 7 DAYS':bd?'NATIONAL ADVISORIES':'CRITICAL & HIGH';
-  $('#stat-exploited-label').textContent=news?'CVE REFERENCES':bd?'LOCAL ACTIVITY':'KNOWN EXPLOITATION';
-  $('#stat-sources-label').textContent=news?'NEWS PUBLISHERS':'SOURCE CHANNELS';
+  $('#stat-exploited-label').textContent=board?'FULL TEXT AVAILABLE':news?'CVE REFERENCES':bd?'LOCAL ACTIVITY':'KNOWN EXPLOITATION';
+  $('#stat-sources-label').textContent='SOURCE CHANNELS';
   $('#stat-total').textContent=countFormat(events.length);
   $('#stat-priority').textContent=countFormat(news?events.filter(event=>Date.parse(event.publishedAt)>=Date.now()-604800000).length:bd?events.filter(event=>event.bangladeshScope==='national-advisory').length:priority);
-  $('#stat-exploited').textContent=countFormat(news?events.filter(event=>event.cves.length).length:bd?events.filter(event=>event.bangladeshScope==='local-activity').length:exploited);
+  $('#stat-exploited').textContent=countFormat(board?events.filter(event=>event.article?.status==='full').length:news?events.filter(event=>event.cves.length).length:bd?events.filter(event=>event.bangladeshScope==='local-activity').length:exploited);
   $('#stat-sources').textContent=countFormat(sources.length);
+  $('#newsboard-compact-counts').textContent=`${events.length} items · ${sources.length} channels · ${events.filter(event=>event.article?.status==='full').length} full text`;
   $('#stat-priority').classList.toggle('danger',!news&&!bd);
   $('#stat-exploited').classList.toggle('amber',!news&&!bd);
-  $('#stat-total-note').textContent=news?'Public news, research & release notes':bd?'Advisories, reports & defensive activity':`${events.filter(event=>event.category==='Incident').length} incident reports · current view`;
+  $('#stat-total-note').textContent=board?'World press, cyber reporting & advisories':news?'Public news, research & release notes':bd?'Advisories, reports & defensive activity':`${events.filter(event=>event.category==='Incident').length} incident reports · current view`;
   $('#stat-priority-note').textContent=news?'Based on original publication dates':bd?'Guidance for organizations in Bangladesh':'Priority review · source-rated or assessed';
-  $('#stat-exploited-note').textContent=news?'Updates mentioning CVE identifiers':bd?'Reported threats or defensive activity':'Reported exploitation in the wild';
+  $('#stat-exploited-note').textContent=board?'Read available articles within CyberWatch':news?'Updates mentioning CVE identifiers':bd?'Reported threats or defensive activity':'Reported exploitation in the wild';
   const failed=sources.filter(source=>source.status==='error').length;
   $('#stat-sources-note').textContent=failed ? `${failed} channel${failed===1?'':'s'} need attention` : 'Publication & collection dates preserved';
   $('#nav-feed-count').textContent=filterEvents(all,{view:'feed'}).length;
   $('#nav-news-count').textContent=filterEvents(all,{view:'newsletters'}).length;
+  $('#nav-newsboard-count').textContent=filterEvents(all,{view:'newsboard'}).length;
   $('#nav-bd-count').textContent=filterEvents(all,{view:'bangladesh'}).length;
   $('#nav-source-count').textContent=state.data.sources.length;
   $('#nav-saved-count').textContent=all.filter(event=>state.saved.has(event.id)).length;
@@ -138,7 +145,7 @@ function renderStats() {
 
 function renderInsights() {
   const events=scopedEvents(),sources=scopedSources(events);
-  const news=state.view==='newsletters';
+  const news=['newsletters','newsboard'].includes(state.view);
   const ordered=filterEvents(events,{view:'all',sort:news?'newest':'severity'});
   const spotlight=(!news&&ordered.find(event=>event.exploited&&['curated','bangladesh-curated'].includes(event.sourceId))) || ordered[0];
   $('#radar-title').textContent=news?'LATEST PUBLICATION':state.view==='bangladesh'?'BANGLADESH FOCUS':'ON YOUR RADAR';
@@ -163,26 +170,42 @@ function renderPublisherChannels() {
   $('#publisher-channels').innerHTML=sources.filter(source=>source.group==='news').map(source=>`<button class="publisher-channel ${state.source===source.id?'active':''}" data-source-filter="${h(source.id)}" aria-pressed="${state.source===source.id}" title="Browse ${h(source.name)} updates"><span class="publisher-monogram" aria-hidden="true">${h(initials(source.name))}</span><span class="publisher-channel-text"><strong>${h(source.name)}</strong><small><span class="tiny-dot ${source.status==='error'?'vulnerability':'patch'}-dot"></span>${source.status==='error'?'Check failed':source.kind==='curated'?'Reviewed reports':source.itemCount+' updates'}</small></span>${icon('chevron')}</button>`).join('');
 }
 
+function newsboardCard(event) {
+  const publisher=state.data.sources.find(source=>source.id===event.sourceId)?.name || event.organization;
+  const original=event.sources.find(source=>safeURL(source.url));
+  const image=event.article?.images.find(item=>safeImageURL(item.url));
+  const readerStatus=event.article?.status || 'excerpt';
+  const type=isNewsEvent(event)?sourceTypeLabels[eventSourceType(event)]||'Cybersecurity':'Security advisory';
+  const tags=[...(event.matchedKeywords||[]),...event.cves.slice(0,2)].slice(0,3);
+  return `<article class="newsboard-card"><button class="newsboard-visual ${image?'has-image':''}" data-open-event="${h(event.id)}" aria-label="Read ${h(event.title)}"><span class="newsboard-visual-fallback" aria-hidden="true">${icon(isNewsEvent(event)?'newspaper':'shield')}<span>${h(publisher)}</span></span>${image?`<img src="${h(safeImageURL(image.url))}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-article-image>`:''}<span class="newsboard-type">${h(type)}</span></button><div class="newsboard-card-body"><div class="newsboard-card-meta"><span title="${h(publisher)}">${h(publisher)}</span><time datetime="${h(event.publishedAt)}" title="${h(detailDate(event.publishedAt))}">${h(shortDate(event.publishedAt))}</time></div><h3><button data-open-event="${h(event.id)}">${h(event.title)}</button></h3><p class="newsboard-summary">${h(event.summary||'Open this publication for the available report and source information.')}</p>${tags.length?`<div class="newsboard-card-tags">${tags.map(tag=>`<span>${h(tag)}</span>`).join('')}</div>`:''}<div class="newsboard-card-footer"><button class="newsboard-read" data-open-event="${h(event.id)}">Read story ${icon('arrow')}</button><span class="reader-label ${readerStatus==='full'?'reader-full':''}">${h(readerLabels[readerStatus])}</span>${original?`<a class="newsboard-original" href="${h(safeURL(original.url))}" target="_blank" rel="noopener noreferrer" aria-label="Open original publication: ${h(event.title)}" title="Open original publication">${icon('external')}</a>`:''}${state.saved.has(event.id)?`<span class="newsboard-saved" title="Saved to watchlist">${icon('bookmark')}</span>`:''}</div></div></article>`;
+}
+
 function renderEventList() {
   if(!state.data)return;
   const events=visibleEvents();
   const displayed=events.slice(0,state.limit);
-  const news=state.view==='newsletters';
-  $('#result-count').textContent=`${events.length} ${news?'UPDATE':'EVENT'}${events.length===1?'':'S'}`;
-  $('#console-title').textContent=state.view==='watchlist'?'watchlist.log':news?'publisher-updates.log':state.view==='bangladesh'?'bangladesh-watch.log':'incident-stream.log';
+  const board=state.view==='newsboard',news=state.view==='newsletters';
+  $('#result-count').textContent=`${events.length} ${board?'ITEM':news?'UPDATE':'EVENT'}${events.length===1?'':'S'}`;
+  $('#console-title').textContent=state.view==='watchlist'?'watchlist.log':board?'worldwide-newsboard.log':news?'publisher-updates.log':state.view==='bangladesh'?'bangladesh-watch.log':'incident-stream.log';
   $('.console-panel').classList.toggle('newsletter-mode',news);
-  $('.event-column-labels').hidden=news;
+  $('.console-panel').classList.toggle('newsboard-mode',board);
+  $('.event-column-labels').hidden=news||board;
   $('#event-list').classList.toggle('newsletter-grid',news);
+  $('#event-list').classList.toggle('newsboard-grid',board);
   const chips=[];
   if(state.category!=='all') chips.push(state.category);
   if(state.source!=='all') chips.push(state.data.sources.find(source=>source.id===state.source)?.name || state.source);
   if(state.query) chips.push(`“${state.query.length>25?state.query.slice(0,25)+'…':state.query}”`);
   if(state.regionScope!=='all')chips.push(scopeLabels[state.regionScope]||state.regionScope);
-  $('#active-filters').innerHTML=chips.length?chips.map(chip=>`<span class="filter-chip">${h(chip)}</span>`).join(''):news?'LATEST PUBLISHER UPDATES':state.view==='bangladesh'?'BANGLADESH INTELLIGENCE':'LATEST INTELLIGENCE';
+  if(board&&state.newsScope!=='all')chips.push(newsScopeLabels[state.newsScope]);
+  if(board&&state.newsTopic!=='all')chips.push(newsTopicLabels[state.newsTopic]);
+  $('#active-filters').innerHTML=chips.length?chips.map(chip=>`<span class="filter-chip">${h(chip)}</span>`).join(''):board?'LATEST WORLDWIDE COVERAGE':news?'LATEST PUBLISHER UPDATES':state.view==='bangladesh'?'BANGLADESH INTELLIGENCE':'LATEST INTELLIGENCE';
   $('#event-list').setAttribute('aria-busy','false');
   if(!events.length) {
     const savedEmpty=state.view==='watchlist'&&!state.data.events.some(event=>state.saved.has(event.id));
     $('#event-list').innerHTML=`<div class="empty-state"><span>${icon(savedEmpty?'bookmark':'search')}</span><h3>${savedEmpty?'Your watchlist starts here.':'No matching signals.'}</h3><p>${savedEmpty?'Open an event and use the bookmark button to keep it in your personal watchlist.':'Try a different keyword, date range, or severity. Your filters work together.'}</p><button class="button secondary" data-empty-action="${savedEmpty?'feed':'reset'}">${savedEmpty?'Explore incident feed':'Clear filters'} ${icon('arrow')}</button></div>`;
+  } else if(board) {
+    $('#event-list').innerHTML=displayed.map(newsboardCard).join('');
   } else if(news) {
     $('#event-list').innerHTML=displayed.map(event=>{
       const publisher=state.data.sources.find(source=>source.id===event.sourceId)?.name || event.organization;
@@ -192,18 +215,20 @@ function renderEventList() {
   } else {
     $('#event-list').innerHTML=displayed.map(event=>`<button class="event-row" data-open-event="${h(event.id)}" aria-label="${h(event.title)}. ${isNewsEvent(event)?'Publisher update':h(severityText(event.severity))+' severity'}. Open details."><span class="event-date">${h(shortDate(event.publishedAt))}<small>${new Intl.DateTimeFormat('en',{year:'numeric',timeZone:DISPLAY_ZONE}).format(new Date(event.publishedAt))} · BDT</small></span><span class="event-severity">${eventBadge(event)}</span><span class="event-body"><span class="event-title">${h(event.title)}</span><span class="event-meta"><span class="org-icon" aria-hidden="true">${h(initials(event.organization))}</span><span class="org-name">${h(event.organization)}</span><span class="meta-sep" aria-hidden="true"></span><span class="event-type">${h(state.view==='bangladesh'&&event.bangladeshScope?scopeLabels[event.bangladeshScope]:event.category)}</span>${event.exploited?`<span class="exploit-tag">${icon('crosshair')} EXPLOITED</span>`:''}</span></span><span class="source-count" title="${event.sources.length} source links">${icon('link')}${event.sources.length}</span><span class="row-arrow">${icon('chevron')}</span>${state.saved.has(event.id)?`<span class="row-saved" aria-label="Saved to watchlist">${icon('bookmark')}</span>`:''}</button>`).join('');
   }
-  $('#console-footer-text').textContent=`${displayed.length} of ${events.length} ${news?'updates':'events'} · source dates · Bangladesh time`;
+  $('#console-footer-text').textContent=`${displayed.length} of ${events.length} ${board?'items':news?'updates':'events'} · source dates · Bangladesh time`;
   $('#load-more').hidden=displayed.length>=events.length;
   $('#export-button').disabled=!events.length;
   $$('.feed-tab').forEach(button=>{button.classList.toggle('active',button.dataset.feedTab===state.tab);button.setAttribute('aria-pressed',String(button.dataset.feedTab===state.tab));});
   $$('.collection-nav button').forEach(button=>{button.classList.toggle('active',button.dataset.collection===state.category);button.setAttribute('aria-pressed',String(button.dataset.collection===state.category));});
   $$('.region-tab').forEach(button=>{const active=button.dataset.regionScope===state.regionScope;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});
   $$('.publisher-channel').forEach(button=>{const active=button.dataset.sourceFilter===state.source;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});
+  $$('.news-scope').forEach(button=>{const active=button.dataset.newsScope===state.newsScope;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});
+  $$('.news-topic').forEach(button=>{const active=button.dataset.newsTopic===state.newsTopic;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});
   $('#publisher-filter').value=state.source;
 }
 
 function renderSources() {
-  $('#source-cards').innerHTML=state.data.sources.map(source=>`<article class="source-card"><div class="source-card-top"><span class="source-card-icon">${icon(source.group==='news'?'newspaper':source.group==='bangladesh'?'globe':source.kind==='curated'?'shield':'radio')}</span><span class="source-state ${source.status==='error'?'error':''}">${sourceState(source)}</span></div><span class="source-group">${source.group==='news'?'NEWS & RESEARCH':source.group==='bangladesh'?'BANGLADESH':'GLOBAL INTELLIGENCE'} · ${source.kind==='secondary'?'SECONDARY REPORTING':source.kind==='curated'?'REVIEWED RECORDS':'PRIMARY PUBLISHER'}</span><h3>${h(source.name)}</h3><p>${h(sourceDescription(source))}</p>${source.error?`<p class="source-card-error">${h(source.error)}. Last available records are shown where retained.</p>`:''}<div class="source-facts"><div><small>RECORDS</small>${countFormat(source.itemCount)}</div><div><small>${source.kind==='curated'?'METHOD':'LAST SUCCESSFUL FETCH'}</small>${h(source.kind==='curated'?'Editorial review':source.lastSuccessAt?fullTimestamp(source.lastSuccessAt):'Not yet collected')}</div><div><small>LAST CHECK ATTEMPT</small>${h(source.kind==='curated'?'Manually reviewed':source.lastAttemptAt?fullTimestamp(source.lastAttemptAt):'Not recorded')}</div></div><div class="source-card-actions"><button data-source-filter="${h(source.id)}">Browse updates ${icon('arrow')}</button>${source.url?`<a href="${h(safeURL(source.url))}" target="_blank" rel="noopener noreferrer">Open source ${icon('external')}</a>`:'<span>Direct links in event details</span>'}</div></article>`).join('');
+  $('#source-cards').innerHTML=state.data.sources.map(source=>`<article class="source-card"><div class="source-card-top"><span class="source-card-icon">${icon(['news','newsboard'].includes(source.group)?'newspaper':source.group==='bangladesh'?'globe':source.kind==='curated'?'shield':'radio')}</span><span class="source-state ${source.status==='error'?'error':''}">${sourceState(source)}</span></div><span class="source-group">${source.group==='newsboard'?'WORLD PRESS':source.group==='news'?'NEWS & RESEARCH':source.group==='bangladesh'?'BANGLADESH':'GLOBAL INTELLIGENCE'} · ${source.kind==='secondary'?'SECONDARY REPORTING':source.kind==='curated'?'REVIEWED RECORDS':'PRIMARY PUBLISHER'}</span><h3>${h(source.name)}</h3><p>${h(sourceDescription(source))}</p>${source.error?`<p class="source-card-error">${h(source.error)}. Last available records are shown where retained.</p>`:''}<div class="source-facts"><div><small>RECORDS</small>${countFormat(source.itemCount)}</div><div><small>${source.kind==='curated'?'METHOD':'LAST SUCCESSFUL FETCH'}</small>${h(source.kind==='curated'?'Editorial review':source.lastSuccessAt?fullTimestamp(source.lastSuccessAt):'Not yet collected')}</div><div><small>LAST CHECK ATTEMPT</small>${h(source.kind==='curated'?'Manually reviewed':source.lastAttemptAt?fullTimestamp(source.lastAttemptAt):'Not recorded')}</div></div><div class="source-card-actions"><button data-source-filter="${h(source.id)}">Browse updates ${icon('arrow')}</button>${source.url?`<a href="${h(safeURL(source.url))}" target="_blank" rel="noopener noreferrer">Open source ${icon('external')}</a>`:'<span>Direct links in event details</span>'}</div></article>`).join('');
 }
 
 function render() {
@@ -212,10 +237,10 @@ function render() {
 }
 
 function setView(view,{reset=false,updateHash=true}={}) {
-  state.view=['feed','newsletters','bangladesh','watchlist','sources'].includes(view)?view:'feed';
+  state.view=['feed','newsboard','newsletters','bangladesh','watchlist','sources'].includes(view)?view:'feed';
   if(reset)resetFilters(false);
   state.limit=12;
-  const labels={feed:['Incident feed','Incident intelligence','Recent cyber events. Verified sources. Actionable context.'],newsletters:['Newsletters & updates','Newsletters & updates','Security news, threat research, and release notes from the publishers you follow.'],bangladesh:['Bangladesh','Bangladesh cyber watch','National advisories, local cyber activity, and developments relevant to Bangladesh.'],watchlist:['Watchlist','Your watchlist','Keep the signals that matter close. Saved on this browser.'],sources:['Sources','Intelligence sources','Know where your information comes from — and when it was checked.']};
+  const labels={feed:['Incident feed','Incident intelligence','Recent cyber events. Source evidence. Actionable context.'],newsboard:['Newsboard','Global newsboard','Follow hacking, cyberattacks, data breaches and security developments around the world.'],newsletters:['Newsletters & updates','Newsletters & updates','Security news, threat research, and release notes from the publishers you follow.'],bangladesh:['Bangladesh','Bangladesh cyber watch','National advisories, local cyber activity, and developments relevant to Bangladesh.'],watchlist:['Watchlist','Your watchlist','Keep the signals that matter close. Saved on this browser.'],sources:['Sources','Intelligence sources','Know where your information comes from — and when it was checked.']};
   const [crumb,title,description]=labels[state.view];
   $('#breadcrumb-current').textContent=crumb;
   $('#page-title').innerHTML=`${h(title)}<span class="heading-dot">.</span>`;
@@ -224,18 +249,20 @@ function setView(view,{reset=false,updateHash=true}={}) {
   $('#sources-view').hidden=state.view!=='sources';
   $('#export-button').hidden=state.view==='sources';
   $('#publisher-channels').hidden=state.view!=='newsletters';
+  $('#newsboard-context').hidden=state.view!=='newsboard';
+  $('#main-content').classList.toggle('newsboard-view',state.view==='newsboard');
   $('#bangladesh-context').hidden=state.view!=='bangladesh';
-  $('.feed-tabs').hidden=state.view==='newsletters';
-  $('#severity-filter-wrap').hidden=state.view==='newsletters';
-  $('#publisher-filter-wrap').hidden=!['newsletters','bangladesh'].includes(state.view);
-  $('#sort-select option[value="severity"]').hidden=state.view==='newsletters';
-  $('#search-input').placeholder=state.view==='newsletters'?'Search articles, publishers, CVEs…':state.view==='bangladesh'?'Search Bangladesh advisories and activity…':'Search events, CVEs, organizations…';
+  $('.feed-tabs').hidden=['newsletters','newsboard'].includes(state.view);
+  $('#severity-filter-wrap').hidden=['newsletters','newsboard'].includes(state.view);
+  $('#publisher-filter-wrap').hidden=!['newsletters','newsboard','bangladesh'].includes(state.view);
+  $('#sort-select option[value="severity"]').hidden=['newsletters','newsboard'].includes(state.view);
+  $('#search-input').placeholder=['newsletters','newsboard'].includes(state.view)?'Search articles, publishers, keywords, CVEs…':state.view==='bangladesh'?'Search Bangladesh advisories and activity…':'Search events, CVEs, organizations…';
   $$('.nav-item').forEach(button=>{const active=button.dataset.view===state.view;button.classList.toggle('active',active);if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');});
   if(updateHash)history.replaceState(null,'',`#${state.view}`);
   render();
 }
 function resetFilters(shouldRender=true) {
-  Object.assign(state,{query:'',severity:'all',category:'all',period:'all',source:'all',regionScope:'all',sort:'newest',tab:'all',limit:12});
+  Object.assign(state,{query:'',severity:'all',category:'all',period:'all',source:'all',regionScope:'all',newsScope:'all',newsTopic:'all',sort:'newest',tab:'all',limit:12});
   $('#search-input').value='';$('#severity-filter').value='all';$('#period-filter').value='all';$('#sort-select').value='newest';$('#publisher-filter').value='all';
   if(shouldRender)renderEventList();
 }
@@ -281,6 +308,20 @@ function detailCoverage(event) {
   const headlineMatch=channel?.group==='bangladesh' && channel?.kind==='secondary' && /\bcyber/i.test(event.title);
   return `<section class="detail-section"><div class="detail-coverage-note"><h4>${icon('globe')} Bangladesh publication context</h4><p>${headlineMatch?'This Bangladesh publisher’s headline contains “cyber” and matches the local newspaper topic filter.':'This article is classified as Bangladesh news coverage.'} Publisher location does not establish that an incident occurred in Bangladesh or affected Bangladeshi victims. Read the original story for the reported incident location and attribution.</p></div></section>`;
 }
+function detailArticle(event) {
+  const article=event.article;
+  const original=event.sources.find(source=>safeURL(source.url));
+  const channel=state.data.sources.find(source=>source.id===event.sourceId);
+  const reviewed=!article&&channel?.kind==='curated';
+  const publisher=reviewed?'CyberWatch reviewed context':channel?.name||event.organization;
+  const status=article?.status||'excerpt';
+  const paragraphs=article?.paragraphs.length?article.paragraphs:[event.description||event.summary].filter(Boolean);
+  const images=(article?.images||[]).filter(item=>safeImageURL(item.url));
+  const readingTime=Math.max(1,Math.ceil(paragraphs.join(' ').split(/\s+/).length/220));
+  const explanation=reviewed?'This is reviewed CyberWatch context based on the linked evidence. It is not the publisher’s article text. Open the original publication or Sources & evidence for the source material.':article?.note || (status==='full'?'Publisher text is available to read below.':status==='restricted'?'The complete article requires access on the publisher’s website.':status==='unavailable'?'The publisher’s full article is not available in this snapshot.':'The available excerpt is shown below. Open the original publication for the complete article.');
+  const figure=(item,index)=>`<figure class="reader-figure"><img src="${h(safeImageURL(item.url))}" alt="${h(item.alt||'Image accompanying the publisher article')}" loading="${index?'lazy':'eager'}" decoding="async" referrerpolicy="no-referrer" data-article-image>${item.caption||item.credit?`<figcaption>${h(item.caption)}${item.caption&&item.credit?' · ':''}${h(item.credit)}</figcaption>`:''}</figure>`;
+  return `<article class="article-reader"><div class="reader-byline"><span>${icon('newspaper')}<strong>${h(publisher)}</strong></span><span>${h(fullDate(event.publishedAt))} · ${readingTime} min read</span></div><div class="reader-status"><span class="reader-label ${status==='full'?'reader-full':''}">${h(reviewed?'Reviewed context':readerLabels[status])}</span><p>${h(explanation)}</p></div>${images[0]?figure(images[0],0):''}<div class="reader-text">${paragraphs.map(paragraph=>`<p>${h(paragraph)}</p>`).join('')}</div>${images.length>1?`<section class="reader-gallery" aria-label="Additional publisher images">${images.slice(1).map((item,index)=>figure(item,index+1)).join('')}</section>`:''}<footer class="reader-attribution"><p>${reviewed?'Reviewed context':'Original publication'}: <strong>${h(publisher)}</strong>. ${reviewed?'Source-based assessment prepared for this console.':status==='full'?'Source-provided article text.':'Available source excerpt and publication context.'} Reported claims remain attributed to the publisher.</p>${article?.fetchedAt?`<p class="detail-caption">Article collected ${h(fullTimestamp(article.fetchedAt))}.</p>`:''}${original?`<a class="button primary original-article" href="${h(safeURL(original.url))}" target="_blank" rel="noopener noreferrer">Open original publication ${icon('external')}</a>`:''}${['full','excerpt'].includes(status)?'<a class="reader-notices" href="./third-party-notices.txt" target="_blank" rel="noopener noreferrer">Publisher content notices</a>':''}</footer></article>`;
+}
 function renderDetail() {
   const event=state.data?.events.find(item=>item.id===state.selectedId);
   if(!event)return;
@@ -295,7 +336,9 @@ function renderDetail() {
   $('#detail-footer-note').textContent=`Record updated ${fullDate(event.updatedAt)} · ${event.sources.length} source${event.sources.length===1?'':'s'}`;
   $$('.detail-tabs [data-detail-tab]').forEach(button=>{const active=button.dataset.detailTab===state.detailTab;button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;});
   $('#detail-panel').setAttribute('aria-labelledby',`detail-tab-${state.detailTab}`);
-  if(state.detailTab==='timeline') {
+  if(state.detailTab==='article') {
+    $('#detail-panel').innerHTML=detailArticle(event);
+  } else if(state.detailTab==='timeline') {
     const timeline=event.timeline.length?event.timeline:[{date:event.publishedAt,title:'Source published',description:event.summary}];
     $('#detail-panel').innerHTML=`<section class="detail-section"><h3>${icon('clock')} ${news?'Publication history':'Event timeline'}</h3><p>Source-reported milestones. A date without a time retains the publisher’s date; exact timestamps are shown in Bangladesh time (BDT).</p></section><ol class="timeline">${timeline.map(item=>`<li><time datetime="${h(item.date)}">${h(detailDate(item.date))}</time><h3>${h(item.title)}</h3><p>${h(item.description)}</p></li>`).join('')}</ol>${detailProvenance(event)}`;
   } else if(state.detailTab==='evidence') {
@@ -314,7 +357,7 @@ function setDetailTab(tab) {
 }
 function openEvent(id,{updateHash=true}={}) {
   if(!state.data?.events.some(event=>event.id===id)){toast('This event is not in the current snapshot.');return;}
-  state.selectedId=id;state.detailTab='overview';renderDetail();
+  state.selectedId=id;state.detailTab=state.view==='newsboard'?'article':'overview';renderDetail();
   if(!$('#event-dialog').open)$('#event-dialog').showModal();
   $('#detail-scroll').scrollTop=0;
   document.body.classList.add('overflow-clip');
@@ -363,6 +406,7 @@ function renderRefreshControls() {
     : 'Published snapshot · checks scheduled every 30 minutes. Connect the live service for on-demand checks.';
   const unavailable=feedClient?.discoveryError && feedClient.discoveryError.status!==404;
   note.textContent=state.initializing?'Connecting to the feed service…':state.collectionMessage||state.configurationWarning||(unavailable?'Live service unavailable. Showing the published snapshot; reload to retry the connection.':ready);
+  note.dataset.display=busy||state.collectionMessage||state.configurationWarning||unavailable?'status':'ready';
   note.classList.toggle('freshness-warning',state.collectionWarning||Boolean(state.configurationWarning)||Boolean(unavailable&&!feedClient?.supportsLive));
 }
 
@@ -380,10 +424,10 @@ async function initializeFeed() {
     const config=JSON.parse(body);
     if(typeof config.apiBase!=='string')throw new Error('Invalid service URL');
     apiBase=config.apiBase;
-    feedClient=createFeedClient({baseURL:new URL('./',import.meta.url),apiBase,refreshTimeoutMs:210000});
+    feedClient=createFeedClient({baseURL:new URL('./',import.meta.url),apiBase,refreshTimeoutMs:330000});
   } catch {
     state.configurationWarning='Live service configuration could not be read. Using same-origin discovery; check dist/config.json.';
-    feedClient=createFeedClient({baseURL:new URL('./',import.meta.url),refreshTimeoutMs:210000});
+    feedClient=createFeedClient({baseURL:new URL('./',import.meta.url),refreshTimeoutMs:330000});
   } finally {clearTimeout(timer);}
   await feedClient.discover();
   state.initializing=false;
@@ -495,7 +539,7 @@ function routeHash() {
   if(hash.startsWith('event=')){
     let id;try{id=decodeURIComponent(hash.slice(6));}catch{return;}
     const record=state.data?.events.find(event=>event.id===id);
-    if(record)setView(isBangladeshEvent(record)?'bangladesh':isNewsEvent(record)?'newsletters':'feed',{reset:true,updateHash:false});
+    if(record)setView(eventSourceType(record)==='mainstream'?'newsboard':isBangladeshEvent(record)?'bangladesh':isNewsEvent(record)?'newsletters':'feed',{reset:true,updateHash:false});
     openEvent(id,{updateHash:false});
   }else{
     if($('#event-dialog').open)$('#event-dialog').close();
@@ -507,7 +551,9 @@ document.addEventListener('click',event=>{
   if(target.dataset.view){setView(target.dataset.view,{reset:true});window.scrollTo({top:0,behavior:'instant'});$('#page-title').focus({preventScroll:true});return;}
   if(target.dataset.openEvent){openEvent(target.dataset.openEvent);return;}
   if(target.dataset.collection){setView('feed',{reset:true});state.category=target.dataset.collection;renderEventList();return;}
-  if(target.dataset.sourceFilter){const source=state.data?.sources.find(item=>item.id===target.dataset.sourceFilter);const view=['newsletters','bangladesh'].includes(state.view)?state.view:source?.group==='news'?'newsletters':source?.group==='bangladesh'?'bangladesh':'feed';const selected=state.source===target.dataset.sourceFilter;setView(view,{reset:true});state.source=selected?'all':target.dataset.sourceFilter;renderEventList();return;}
+  if(target.dataset.sourceFilter){const source=state.data?.sources.find(item=>item.id===target.dataset.sourceFilter);const view=['newsletters','newsboard','bangladesh'].includes(state.view)?state.view:source?.group==='newsboard'||source?.sourceType==='vendor'?'newsboard':source?.group==='news'?'newsletters':source?.group==='bangladesh'?'bangladesh':'feed';const selected=state.source===target.dataset.sourceFilter;setView(view,{reset:true});state.source=selected?'all':target.dataset.sourceFilter;renderEventList();return;}
+  if(target.dataset.newsScope){state.newsScope=target.dataset.newsScope;state.limit=12;renderEventList();return;}
+  if(target.dataset.newsTopic){state.newsTopic=target.dataset.newsTopic;state.limit=12;renderEventList();return;}
   if(target.dataset.regionScope){state.regionScope=target.dataset.regionScope;state.tab='all';state.limit=12;renderEventList();return;}
   if(target.dataset.feedTab){state.tab=target.dataset.feedTab;state.limit=12;renderEventList();return;}
   if(target.dataset.detailTab){setDetailTab(target.dataset.detailTab);return;}
@@ -521,12 +567,13 @@ $('#period-filter').addEventListener('change',event=>{state.period=event.target.
 $('#publisher-filter').addEventListener('change',event=>{state.source=event.target.value;state.limit=12;renderEventList();});
 $('#sort-select').addEventListener('change',event=>{state.sort=event.target.value;state.limit=12;renderEventList();});
 $('#reset-filters').addEventListener('click',()=>{resetFilters();toast('All filters cleared.');});
-$('#load-more').addEventListener('click',()=>{const current=state.limit;state.limit+=12;renderEventList();const rows=state.view==='newsletters'?$$('.newsletter-card h3 button'):$$('.event-row');rows[current]?.focus();});
+$('#load-more').addEventListener('click',()=>{const current=state.limit;state.limit+=12;renderEventList();const rows=state.view==='newsboard'?$$('.newsboard-card h3 button'):state.view==='newsletters'?$$('.newsletter-card h3 button'):$$('.event-row');rows[current]?.focus();});
 $('#refresh-button').addEventListener('click',manualRefresh);
 $('#export-button').addEventListener('click',exportCSV);
 $('#detail-close').addEventListener('click',closeEvent);
 $('#detail-bookmark').addEventListener('click',toggleBookmark);
 $('#copy-brief').addEventListener('click',copyBrief);
+document.addEventListener('error',event=>{if(event.target instanceof HTMLImageElement && event.target.hasAttribute('data-article-image')){event.target.hidden=true;event.target.parentElement.classList.add('image-unavailable');}},true);
 $('#event-dialog').addEventListener('click',event=>{if(event.target===$('#event-dialog')){const r=$('#event-dialog').getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeEvent();}});
 const showInfo=()=>{$('#info-dialog').showModal();document.body.classList.add('overflow-clip');};
 $('#methodology-open').addEventListener('click',showInfo);

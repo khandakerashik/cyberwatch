@@ -2,13 +2,14 @@
 
 A terminal-inspired threat intelligence console for incident reports, exploited vulnerabilities, security advisories, patch updates, publisher news, and Bangladesh-specific cyber activity. Open an event to read its description, severity rationale, impact, recommended actions, technical context, timeline, and original sources.
 
-**Version 1.4.0** adds a persistent viewport footer, expanded event assessments, and headline-filtered Bangladesh English newspaper coverage. The always-on Python/Waitress service checks publishers every **30 minutes** and starts an on-demand check when a visitor selects **Refresh**. The HTML, CSS, and JavaScript console and its refresh API can run together on one host. No database service or publisher API key is required.
+**Version 2.0.1** adds a separate **Newsboard** under **WORKSPACE**, keyword-filtered international news, official software security advisories, and an article reader with publisher images and explicit content-availability labels. The always-on Python/Waitress service checks publishers every **30 minutes** and starts an on-demand check when a visitor selects **Refresh**. The HTML, CSS, and JavaScript console and its refresh API can run together on one host. No database service or publisher API key is required. See [UPGRADE.md](UPGRADE.md) for an existing installation.
 
 GitHub Pages remains available as a static deployment: GitHub Actions collects and publishes a snapshot on a best-effort 30-minute schedule. Pages can also connect to the live service to provide on-demand collection. The deployment sections below explain each setup.
 
 ## Console views
 
 - **Incident feed:** incident reports, vulnerabilities, advisories, and patches, with search, severity/date filters, detailed assessments, and source evidence.
+- **Newsboard:** a worldwide view combining relevant world-press coverage, specialist cybersecurity reporting, and official advisories. Switch between **All coverage**, **World press**, **Cybersecurity**, and **Advisories**; filter by topic, publisher, publication date, and search terms. Image cards open the **Article** reader. Mainstream news remains attributed reporting with an unknown severity unless a separate reviewed assessment exists.
 - **Newsletters:** public updates from Cybernews, BleepingComputer, SecurityWeek, Help Net Security, The Hacker News, Palo Alto Networks Unit 42, CrowdStrike, PHP, Microsoft Security, Cisco Talos, and Bangladesh publishers. Browse by publisher and open an item for its available feed excerpt and original article link. Cybernews entries show the headline, publication date, attribution, and link. This view aggregates public RSS/Atom and publisher-index content; it does not subscribe users to emails or read an inbox.
 - **Bangladesh:** national advisories, reported local cyber activity, and defensive programmes from BGD e-GOV CIRT, Bangladesh Cyber Security Intelligence, and reviewed records, plus English newspaper headlines containing “cyber”. Newspaper sources include The Daily Star, Dhaka Tribune, The Business Standard, and The Financial Express. Use **News coverage** and the publisher filter to browse newspaper updates. Scope labels distinguish publisher coverage from national advisories and reported local activity.
 - **Watchlist and Sources:** save records in this browser and inspect each publisher's latest attempt, last successful collection, and any collection error.
@@ -19,7 +20,7 @@ The freshness display separates a changed database from a collection attempt and
 
 CyberWatch uses a dark cyber-tech interface with a fine background grid, restrained mint accents, terminal-inspired panels, and an eagle logo. The interface reflows from compact phones to wide desktop monitors:
 
-- **Phones:** full-width content, five labeled bottom-navigation buttons, stacked event cards, wrapping filters, and safe-area spacing for device cutouts and home indicators.
+- **Phones:** full-width content, six labeled navigation buttons in a horizontally scrollable bottom bar, stacked event cards, wrapping filters, and safe-area spacing for device cutouts and home indicators.
 - **Tablets:** a compact icon sidebar, flexible card grids, and readable search and filter controls.
 - **Desktop and wide screens:** a full sidebar, incident table, and adjacent intelligence panels within a bounded content width.
 - **Event details:** the heading and content share a scrollable area, while the close controls remain available, including on short landscape displays.
@@ -28,7 +29,7 @@ Main navigation and primary touch controls have targets of at least 44 CSS pixel
 
 ## Expanded event details
 
-The three detail tabs remain **Overview**, **Timeline**, and **Sources & evidence**. They now include:
+The detail tabs are **Overview**, **Article**, **Timeline**, and **Sources & evidence**. They include:
 
 - **Technical context**, when reviewed source material is available: affected systems and versions, entry point, prerequisites, and source-described mitigation. The bundled PHP, CAPCOM ID, Railway, and Node.js assessments include this additional context.
 - **Detection and triage**, explicitly labeled as an analyst review checklist, with evidence limitations and unconfirmed details listed separately. Missing versions, indicators, affected counts, or attack methods are left unknown.
@@ -37,6 +38,64 @@ The three detail tabs remain **Overview**, **Timeline**, and **Sources & evidenc
 - **Publisher context** for news: reported relevance, follow-up guidance, original article links, and evidence limits. Bangladesh newspaper coverage describes the publisher channel, not necessarily the location of an attack or victim.
 
 **Copy brief** includes the available technical context, evidence qualifications, original sources, CVE links, and source-channel freshness. The same detail layout works for automated records; where the collected source does not supply reviewed technical information, the panel says so instead of creating it.
+
+## Worldwide Newsboard
+
+The checked-in catalogue in `data/news-sources.json` extends the established feeds. It includes BBC Technology, World and Business; Washington Post Technology, World and Business; The Guardian; Sky News; Al Jazeera; NPR; Deutsche Welle; France 24; ABC Australia; and The New York Times. Additional specialist channels include The Record, The Register and Dark Reading, alongside the existing security publishers. These are configured collection channels, not a guarantee that every publisher endpoint is reachable from every deployment. **Sources** reports the result of each attempt, including blocked, changed and unavailable feeds.
+
+General-news entries are selected using **OR** matching across headline and available feed text. The built-in vocabulary includes hack/hacked/hacking/hackers, cyberattack/cyber attack, cybersecurity, cybercrime, data breach, ransomware, malware, spyware, phishing, DDoS, denial of service, zero-day, vulnerability/CVE, credential theft, supply-chain attacks, security updates and cryptocurrency theft. Common lifestyle uses such as “life hacks” and “kitchen hacks” are excluded from the generic hacking match. Publisher dates are retained; collection time is never substituted for an unknown publication date.
+
+Official channels for **NGINX, Python, GitLab and Node.js** populate the intelligence stream as advisories or patches and also appear in Newsboard's **Advisories** scope. NGINX entries correlate the vendor advisory index with dated official changelog records; their date represents the security-fix changelog entry and is identified accordingly. General Node.js and Python feature releases are filtered for security relevance. A software advisory does not establish that a customer organization was hacked.
+
+Coverage is broad and extensible, with no paid news API required. It is not an exhaustive global archive: public feeds have finite windows, articles can appear between refreshes, access policies change, and the default relevance vocabulary is English. Retention and per-source limits are bounded, and the final record budget is shared across sources so one high-volume publisher cannot consume the entire snapshot.
+
+### Article-level Newsboard relevance (2.0.1)
+
+Newsboard assesses each article's title and a bounded publisher lead, including items from security-focused publishers. Publisher identity and old keyword tags do not automatically qualify a story. General business, subscription, consumer-tracking and consent-only privacy coverage is excluded when it lacks a cybersecurity connection. A settlement over an actual data breach remains eligible, as do hacking, malware, vulnerabilities, threat research, identity security and AI security articles.
+
+The collector records a versioned relevance decision on fresh and retained news, including source-outage fallback. The browser applies the same rules to legacy snapshots, so previously collected unrelated items stop appearing in Newsboard after the updated frontend loads. Broader publisher updates remain available in Newsletters. Per-source collection and retention budgets prioritize eligible cybersecurity items ahead of other publisher updates. Source publication dates and actual collection timestamps are preserved.
+
+The shared policy is `data/news-relevance-rules.json`; `python scripts/build_relevance_rules.py` regenerates its browser module after a policy edit. `npm run check` verifies that the generated rules match. Increment the policy version together with schema support when making a later incompatible policy change, so old saved decisions are reevaluated. Rules use a bounded lead to avoid classifying an IPO or privacy story from an incidental security reference elsewhere in a long article.
+
+### Read articles and images inside CyberWatch
+
+Each card opens a reader with source attribution and one of four availability states:
+
+| Reader label | Meaning |
+| --- | --- |
+| **Full text** | The configured publisher policy permits full text and readable content was obtained from its feed or public article page. Bounded or incomplete extraction is labelled as an excerpt. |
+| **Excerpt** | Available publisher feed text or a partial permitted extract. The original link opens the complete publication. |
+| **Publisher access** | The publisher indicates an access restriction or page collection is disallowed. Any permitted feed excerpt remains available. |
+| **Source link** | No usable reader text was collected. The headline, date, attribution and original publication remain accessible. |
+
+The collector extracts plain paragraphs and image metadata, not executable publisher HTML. RSS media/enclosure images and permitted article images are supported, with captions or credits when supplied. Images load directly from public HTTPS publisher/CDN URLs with no referrer; the project does not create an offline image archive. A removed or blocked image falls back to a publisher placeholder. Source pages requiring login, a subscription or a challenge are not bypassed. Robots rules apply to full-page fetching, and unknown/failed robots checks do not permit a fetch.
+
+Mainstream publishers default to feed excerpts and links. Full-page collection is explicitly controlled per source by `articlePolicy.allowFullText` and an exact `allowedHosts` list; configure it only when the publisher's terms or your license permit reuse. The bundled permitted vendor policies are source-specific. Full text cannot be guaranteed for every BBC, Washington Post or other news item. There is no arbitrary-URL reader API or browser-side scraping proxy.
+
+### Customize sources and keywords
+
+Edit `data/news-sources.json` and retain its top-level `version: 1`. Its `sources` entries extend the default source registry; an entry with an existing ID overrides that source, and an entry with `"enabled": false` disables it. New RSS/Atom publishers require no parser code. Add literal words or phrases to `additionalKeywords` and optionally to `excludeKeywords`; custom words are escaped rather than treated as regular expressions. Custom terms should be specific enough to avoid unrelated news.
+
+Example of a new permitted public RSS channel (replace the example URL with the actual publisher endpoint):
+
+```json
+{
+  "id": "example-security-news",
+  "name": "Example Security News",
+  "url": "https://news.example.com/",
+  "feedUrls": ["https://news.example.com/rss.xml"],
+  "format": "rss",
+  "group": "newsboard",
+  "sourceType": "mainstream",
+  "kind": "secondary",
+  "keywordFilter": true,
+  "retentionDays": 30,
+  "maxItems": 30,
+  "articlePolicy": {"allowFullText": false}
+}
+```
+
+Entries in `feedUrls` are alternative endpoints for one channel, not a union of topic feeds. Use separate source IDs for topics such as BBC Business and BBC World; duplicate article URLs are reconciled during assembly. Supported source types are `mainstream`, `security`, `vendor`, and `government`. Use `group: "intelligence"` and `securityOnly: true` for a mixed official release feed that should contribute security advisories. Non-feed vendor pages need a dedicated parser; changing the URL alone does not make arbitrary HTML collectable. All changes are local administrator configuration; visitors cannot submit arbitrary URLs to the server.
 
 ## Deploy from GitHub
 
@@ -123,8 +182,11 @@ python scripts/configure_api.py --reset
 | `CYBERWATCH_ALLOWED_ORIGINS` | Empty | Additional exact browser origins permitted to use the API. Same-origin use needs no entry. |
 | `CYBERWATCH_PUBLIC_ORIGIN` | Unset | Exact public origin when a reverse proxy terminates HTTPS. Render's `RENDER_EXTERNAL_URL` is used automatically when this setting is absent. Otherwise the server uses the request's direct scheme and host. |
 | `PORT` | `8000` | Listening port; `--port` overrides it. Hosted services should use `--host 0.0.0.0`. |
+| `CYBERWATCH_HTTPS_PROXY` | Unset | Optional trusted HTTP CONNECT proxy, such as `http://approved-proxy:3128`, for networks requiring explicit outbound proxying. Only this named setting is read; standard `HTTPS_PROXY` is not used automatically. Credentials and HTTPS/SOCKS proxy transport are not supported. Publisher HTTPS certificates remain verified. |
 
 The collector cadence is 1,800 seconds. Concurrent refresh requests share the running job, and new jobs have a 60-second minimum interval between their start times. These controls are implemented in `server/app.py`; there is no multi-instance coordinator or external database.
+
+Without a proxy, publisher requests validate and pin public DNS addresses and restrict redirects to the source's exact allowed hosts. With `CYBERWATCH_HTTPS_PROXY`, requests still validate target hosts and their public DNS answers and use verified TLS inside the CONNECT tunnel, but the proxy resolves/connects to the publisher itself. Configure a trusted proxy that enforces public destinations and protects its own DNS resolution. The application does not disable TLS verification or forward credentials to publishers.
 
 ### If the Pages deployment does not start
 
@@ -162,7 +224,7 @@ python scripts/fetch_feeds.py
 python scripts/validate_data.py
 ```
 
-The collector and validation scripts use Python's standard library. Only the live server requires the package in `requirements.txt`; no npm installation is needed. All assets and the published snapshot are hosted with the application.
+The collector and validation scripts use Python's standard library. Only the live server requires the package in `requirements.txt`; no npm installation is needed. Application assets and the published snapshot are hosted with the application. Publisher article images load from their public HTTPS source URLs.
 
 ## How intelligence is collected
 
@@ -190,7 +252,7 @@ The collector and validation scripts use Python's standard library. Only the liv
 | `data/curated.json` | Reviewed incident reports and detailed assessments | Edited in the repository. Each record links to its original source and distinguishes verified facts, reported claims, and analyst assessments. |
 | `data/bangladesh-curated.json` | Reviewed Bangladesh advisories, reported incidents, and defensive activity | Maintains explicit Bangladesh scope, evidence limits, publication dates, and detailed assessments. |
 
-There are **21 automated source channels and 2 reviewed inputs**. The three CIRT channels are collected separately. The collector merges these inputs, deduplicates stable IDs and matching article URLs within a stream, and prefers a detailed curated record when an automated item points to the same article. It keeps up to **300 records by default**, with bounded per-source collection, validates the result, and writes its output atomically. A direct collector run writes `dist/data/incidents.json`; the live server validates a staged result before publishing it as `snapshot.json` in `CYBERWATCH_DATA_DIR`. Different publications about the same CVE can remain separate events because their evidence, dates, or update types differ. An exploitation report and a patch release are intentionally distinct records.
+The default source registry contains **45 automated source channels and 2 reviewed inputs**, combining the established feeds with `data/news-sources.json`. The three CIRT channels are collected separately. The collector merges these inputs, deduplicates stable IDs and matching article URLs within a stream, and prefers a detailed curated record when an automated item points to the same article. It keeps up to **1,200 records by default**, with bounded per-source collection and fair source allocation, validates the result, and writes its output atomically. A direct collector run writes `dist/data/incidents.json`; the live server validates a staged result before publishing it as `snapshot.json` in `CYBERWATCH_DATA_DIR`. Different publications about the same CVE can remain separate events because their evidence, dates, or update types differ. An exploitation report and a patch release are intentionally distinct records.
 
 The four English newspaper channels require a case-insensitive headline word starting with **cyber**, including **cybersecurity**, **cybercrime**, **cyberattack**, and **cyber-attacks**. A match only in an article body does not qualify. These channels display the headline, original publication date, attribution, and direct article link; they do not reproduce full articles or create automatic incident assessments. Collection is limited to the configured public feed or index, so it is not an exhaustive search of each newspaper's archive. A bounded history retains up to 20 matching headlines per newspaper for 30 days after publication as they rotate off an index. A valid feed or index with no current matches remains healthy. Failed or incomplete metadata checks retain the previous successful-collection time and report the failure instead of inventing dates.
 
@@ -202,7 +264,7 @@ The Pages workflow produces a deployment artifact; it does not commit generated 
 
 The full application automatically checks configured sources every **1,800 seconds / 30 minutes**. Selecting **Refresh** sends `POST /api/refresh`, starts a collection job immediately when idle and outside the cooldown, and returns its job ID. The browser polls that job's status, then downloads the new snapshot when it finishes. Publisher requests take time, so the button starts collection immediately while the updated results arrive after collection completes.
 
-Concurrent requests reuse the active job. A new job cannot start within **60 seconds of the previous job's start**; the API returns a retry interval when that cooldown applies. A manual check does not postpone the regular automatic schedule. The server allows a collection up to three minutes before treating it as failed, and preserves the previous valid snapshot if the collector process or output validation fails. Individual publisher failures are recorded separately and retain that publisher's available previous records.
+Concurrent requests reuse the active job. A new job cannot start within **60 seconds of the previous job's start**; the API returns a retry interval when that cooldown applies. A manual check does not postpone the regular automatic schedule. The server allows a collection up to five minutes before treating it as failed, and preserves the previous valid snapshot if the collector process or output validation fails. Individual publisher failures are recorded separately and retain that publisher's available previous records.
 
 On **GitHub Pages alone**, collection is scheduled at minute **17 and 47 of every UTC hour**. The **Reload snapshot** button retrieves the last published result, and a manual run of **Refresh intelligence and deploy Pages** requests a new workflow collection. GitHub schedules can be delayed, and public-repository schedules can be disabled after 60 days without repository activity. See [scheduled workflow behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
 
@@ -343,7 +405,7 @@ With Node.js 20 or newer, also run the browser-logic checks:
 node --check dist/app.js
 node --check dist/refresh.js
 node --check dist/footer.js
-node --test tests/core.test.mjs tests/refresh.test.mjs
+node --test tests/*.test.mjs
 ```
 
 On Linux/macOS with `python3` available, `npm run check` runs the combined checks. `npm install` is unnecessary.
@@ -356,14 +418,14 @@ To change the record limit:
 python scripts/fetch_feeds.py --limit 400
 ```
 
-The CLI accepts limits from 1 to 500 and defaults to 300. Update the Pages workflow's collector command to retain an override in that deployment; the live server explicitly requests 300 in `server/app.py`. Add or adjust official feed endpoints in `SOURCES` inside `scripts/fetch_feeds.py`; feed formats need a matching parser. API keys and secrets must never be placed in `dist`, which is publicly downloadable on a public deployment.
+The CLI accepts limits from 1 to 2,000 and defaults to 1,200. Update the Pages workflow's collector command to retain an override in that deployment; the live server explicitly requests 1,200 in `server/app.py`. Add or override feed endpoints in `data/news-sources.json`; new non-feed formats need a matching parser. API keys and secrets must never be placed in `dist`, which is publicly downloadable on a public deployment.
 
 ## Project structure
 
 | Path | Purpose |
 | --- | --- |
 | `dist/index.html` | Application entry point |
-| `dist/styles.css`, `dist/updates.css`, `dist/responsive.css`, `dist/details.css` | Console theme, update views, responsive layouts, and expanded event details |
+| `dist/styles.css`, `dist/updates.css`, `dist/responsive.css`, `dist/details.css`, `dist/newsboard.css` | Console theme, update views, responsive layouts, and expanded event details |
 | `dist/app.js` | Browser rendering and interactions |
 | `dist/core.js` | Filtering, sorting, source URL validation, exports |
 | `dist/refresh.js` | API discovery, refresh requests, job polling, and snapshot retrieval |
@@ -373,6 +435,9 @@ The CLI accepts limits from 1 to 500 and defaults to 300. Update the Pages workf
 | `dist/data/incidents.json` | Static published snapshot and initial live-service seed |
 | `data/curated.json` | Reviewed incident content maintained in Git |
 | `data/bangladesh-curated.json` | Reviewed Bangladesh advisories, incidents, and defensive activity |
+| `data/news-sources.json` | Administrator-managed publisher/advisory catalogue and keyword settings |
+| `scripts/source_catalog.py` | Source validation, classification and keyword matching |
+| `scripts/article_content.py` | Plain-text reader extraction, image metadata, policy checks and bounded article fetching |
 | `scripts/fetch_feeds.py` | Public-feed and publisher-index collector, merge logic, and freshness metadata |
 | `scripts/configure_api.py` | Sets a remote API base and the matching CSP origin, or restores automatic discovery |
 | `scripts/validate_data.py` | Event and snapshot validation |

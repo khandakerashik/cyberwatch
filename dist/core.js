@@ -1,4 +1,8 @@
 /** Pure, dependency-free data handling shared by the console and its tests. */
+import { newsRelevance, normalizeNewsRelevance } from './news-relevance.js';
+
+export { newsRelevance } from './news-relevance.js';
+
 export const SEVERITIES = Object.freeze(['critical', 'high', 'medium', 'low', 'unknown']);
 
 const CATEGORIES = new Map([
@@ -7,7 +11,8 @@ const CATEGORIES = new Map([
 ]);
 const STATUSES = new Set(['investigating', 'active', 'mitigated', 'resolved', 'monitoring']);
 const BANGLADESH_SCOPES = new Set(['national-advisory', 'local-activity', 'coverage']);
-const SOURCE_GROUPS = new Set(['news', 'intelligence', 'bangladesh']);
+const SOURCE_GROUPS = new Set(['news', 'newsboard', 'intelligence', 'bangladesh']);
+const SOURCE_TYPES = new Set(['mainstream', 'security', 'vendor', 'government']);
 const MAX_EVENTS = 2000;
 const TECHNICAL_FIELDS = ['affectedSystems', 'attackVector', 'prerequisites', 'detection', 'mitigation', 'limitations'];
 const CVE_PATTERN = /^CVE-\d{4}-\d{4,}$/;
@@ -41,6 +46,38 @@ export function isNewsEvent(event) {
   return text(event?.stream, 30).toLowerCase() === 'news' || text(event?.category, 30).toLowerCase() === 'news';
 }
 
+/** Coverage labels describe publishers, never the location or certainty of an incident. */
+export function eventSourceType(event) {
+  if (SOURCE_TYPES.has(event?.sourceType)) return event.sourceType;
+  return isNewsEvent(event) ? 'security' : '';
+}
+
+export function isNewsboardEvent(event) {
+  if (isNewsEvent(event)) return newsRelevance(event).relevant;
+  return ['vendor', 'government'].includes(eventSourceType(event)) &&
+    ['Advisory', 'Vulnerability', 'Patch'].includes(event?.category);
+}
+
+const NEWS_TOPICS = Object.freeze({
+  hack: /\bhack(?:ed|ing|er|ers|s)?\b/i,
+  cyberattack: /\bcyber[ -]?attack(?:s|ed)?\b/i,
+  ransomware: /\bransomware\b/i,
+  breach: /\b(?:breach(?:es|ed)?|data leak(?:s|ed)?)\b/i,
+  phishing: /\b(?:phishing|smishing|vishing)\b/i,
+  malware: /\b(?:malware|trojan|botnet|spyware)\b/i,
+  'zero-day': /\bzero[ -]?day\b|\b0[ -]?day\b/i,
+  ddos: /\bddos\b|\bdenial[ -]of[ -]service\b/i,
+  vulnerability: /\bvulnerabilit(?:y|ies)\b|\bCVE-\d{4}-\d{4,}\b/i,
+});
+
+export function matchesNewsTopic(event, topic) {
+  if (!topic || topic === 'all') return true;
+  const pattern = NEWS_TOPICS[topic];
+  if (!pattern) return false;
+  return pattern.test([event?.title, event?.summary, event?.description,
+    ...(event?.matchedKeywords || []), ...(event?.newsTopics || []), ...(event?.cves || [])].join(' '));
+}
+
 /** Match explicit regional attribution; a global bulletin does not establish local activity. */
 export function isBangladeshEvent(event) {
   return BANGLADESH_SCOPES.has(text(event?.bangladeshScope, 40).toLowerCase()) ||
@@ -66,6 +103,42 @@ export function safeURL(value) {
   } catch {
     return '';
   }
+}
+
+/** Image requests are HTTPS only and cannot target local hosts or IP literals. */
+export function safeImageURL(value) {
+  const candidate = safeURL(value);
+  if (!candidate) return '';
+  const parsed = new URL(candidate);
+  const host = parsed.hostname.toLowerCase().replace(/\.$/, '');
+  if (parsed.protocol !== 'https:' || (parsed.port && parsed.port !== '443')) return '';
+  if (!host.includes('.') || /^[\d.]+$/.test(host) || host.includes(':') || host.includes('[')) return '';
+  if (/(?:^|\.)(?:localhost|local|internal|intranet|home|lan|test|invalid|onion)$/.test(host)) return '';
+  if (/\.(?:svg|svgz)(?:$|\/)/i.test(parsed.pathname)) return '';
+  return parsed.href;
+}
+
+function normalizeArticle(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const paragraphs = [];
+  let remaining = 100000;
+  for (const item of strings(value.paragraphs, 120, 4000)) {
+    if (!remaining) break;
+    const paragraph = item.slice(0, remaining);
+    paragraphs.push(paragraph);
+    remaining -= paragraph.length;
+  }
+  const images = (Array.isArray(value.images) ? value.images : []).slice(0, 6)
+    .filter(image => image && typeof image === 'object')
+    .map(image => ({url: safeImageURL(image.url), alt: text(image.alt, 500), caption: text(image.caption, 1000), credit: text(image.credit, 300)}))
+    .filter(image => image.url);
+  let status = ['full', 'excerpt', 'unavailable', 'restricted'].includes(value.status) ? value.status : 'unavailable';
+  if (status === 'full' && !paragraphs.length) status = 'unavailable';
+  const clipped = Array.isArray(value.paragraphs) &&
+    (value.paragraphs.length > 120 || value.paragraphs.some(item => typeof item === 'string' && item.length > 4000) || value.paragraphs.reduce((total,item)=>total+(typeof item === 'string'?item.length:0),0) > 100000);
+  if (status === 'full' && clipped) status = 'excerpt';
+  return {status, paragraphs, images, origin: value.origin === 'publisher' ? 'publisher' : 'feed',
+    fetchedAt: isoTimestamp(value.fetchedAt), note: clipped ? 'The available text exceeds this reader’s display limit. Open the original publication for the complete article.' : text(value.note, 2000)};
 }
 
 /** Build an official record link only from a complete, valid CVE identifier. */
@@ -127,6 +200,11 @@ function normalizeEvent(raw) {
     cves: cveIdentifiers(raw.cves), tags: strings(raw.tags, 60, 160),
     impact: strings(raw.impact, 40, 4000), recommendations: strings(raw.recommendations, 40, 4000),
     timeline, sources,
+    sourceType: SOURCE_TYPES.has(raw.sourceType) ? raw.sourceType : '',
+    matchedKeywords: strings(raw.matchedKeywords, 30, 100),
+    newsTopics: strings(raw.newsTopics, 30, 100),
+    newsRelevance: normalizeNewsRelevance(raw.newsRelevance),
+    article: normalizeArticle(raw.article),
     confidence: raw.confidence === 'confirmed' ? 'confirmed' : 'reported',
     severityBasis: text(raw.severityBasis, 4000) || 'Severity has not been independently assessed.',
     evidenceNote: text(raw.evidenceNote, 5000),
@@ -183,7 +261,7 @@ export function normalizeData(raw) {
   }
   const sourceIds = new Set();
   const sources = [];
-  for (const item of raw.sources.slice(0, 100)) {
+  for (const item of raw.sources.slice(0, 200)) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
     const id = text(item.id, 180);
     if (!id || sourceIds.has(id)) continue;
@@ -193,6 +271,9 @@ export function normalizeData(raw) {
       url: safeURL(item.url) || null,
       kind: ['primary', 'secondary', 'curated'].includes(item.kind) ? item.kind : 'primary',
       group: SOURCE_GROUPS.has(item.group) ? item.group : 'intelligence',
+      sourceType: SOURCE_TYPES.has(item.sourceType) ? item.sourceType :
+        item.group === 'newsboard' ? 'mainstream' : /^(?:cisa|cert|cirt|bcsi)/i.test(id) ? 'government' :
+        item.group === 'news' ? (item.kind === 'secondary' ? 'security' : 'vendor') : '',
       description: text(item.description, 2000),
       status: ['ok', 'error', 'snapshot'].includes(item.status) ? item.status : 'snapshot',
       lastSuccessAt: isoTimestamp(item.lastSuccessAt),
@@ -201,6 +282,8 @@ export function normalizeData(raw) {
       error: text(item.error, 2000) || null,
     });
   }
+  const sourceTypes = new Map(sources.map(source => [source.id, source.sourceType]));
+  for (const event of events) if (!event.sourceType) event.sourceType = sourceTypes.get(event.sourceId) || eventSourceType(event);
   // Loading a snapshot is not a feed check. Legacy timestamps may only be
   // recovered from recorded attempts, never from the browser's current time.
   const attempts = sources.filter(source => source.kind !== 'curated' && source.lastAttemptAt)
@@ -213,7 +296,7 @@ export function normalizeData(raw) {
 /** Search, combine filters, and sort without mutating the supplied event array. */
 export function filterEvents(events, {
   query = '', severity = 'all', category = 'all', period = 'all', source = 'all',
-  view = 'feed', regionScope = 'all', savedIds = [], sort = 'newest', now = Date.now(),
+  view = 'feed', regionScope = 'all', newsScope = 'all', newsTopic = 'all', savedIds = [], sort = 'newest', now = Date.now(),
 } = {}) {
   const tokens = String(query ?? '').trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   const saved = savedIds instanceof Set ? savedIds : new Set(Array.isArray(savedIds) ? savedIds : []);
@@ -229,13 +312,19 @@ export function filterEvents(events, {
     if (category !== 'all' && event.category !== category) return false;
     if (view === 'feed' && isNewsEvent(event)) return false;
     if (view === 'newsletters' && !isNewsEvent(event)) return false;
+    if (view === 'newsboard' && !isNewsboardEvent(event)) return false;
+    if (view === 'newsboard' && newsScope === 'mainstream' && eventSourceType(event) !== 'mainstream') return false;
+    if (view === 'newsboard' && newsScope === 'security' && (eventSourceType(event) === 'mainstream' || !isNewsEvent(event))) return false;
+    if (view === 'newsboard' && newsScope === 'advisories' && isNewsEvent(event)) return false;
+    if (view === 'newsboard' && !matchesNewsTopic(event, newsTopic)) return false;
     if (view === 'bangladesh' && !isBangladeshEvent(event)) return false;
     if (regionScope !== 'all' && event.bangladeshScope !== regionScope) return false;
     if (view === 'watchlist' && !saved.has(event.id)) return false;
     if (source !== 'all' && String(event.sourceId).toLocaleLowerCase() !== sourceQuery && !(event.sources || []).some(item => String(item.name).toLocaleLowerCase() === sourceQuery)) return false;
     if (tokens.length) {
       const haystack = [event.title, event.organization, event.summary, event.description,
-        ...(event.cves || []), ...(event.tags || []), ...(event.geography || []), ...(event.sectors || [])]
+        ...(event.cves || []), ...(event.tags || []), ...(event.geography || []), ...(event.sectors || []),
+        ...(event.matchedKeywords || []), ...(event.sources || []).map(item => item.name)]
         .join(' ').toLocaleLowerCase();
       if (!tokens.every(token => haystack.includes(token))) return false;
     }

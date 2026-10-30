@@ -24,10 +24,11 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_RESPONSE = 8 * 1024 * 1024
-TIMEOUT = 20
+MAX_SNAPSHOT_BYTES = 32 * 1024 * 1024
+TIMEOUT = 12
 ATOM = {"a": "http://www.w3.org/2005/Atom"}
 CVE = re.compile(r"\bCVE-\d{4}-\d{4,}\b", re.I)
-SOURCES = (
+BASE_SOURCES = (
     {"id": "cisa-kev", "name": "CISA Known Exploited Vulnerabilities",
      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
      "feedUrls": ["https://raw.githubusercontent.com/cisagov/kev-data/develop/known_exploited_vulnerabilities.json",
@@ -120,6 +121,16 @@ SOURCES = (
      "feedUrls": ["https://thefinancialexpress.com.bd/"], "format": "newspaper",
      "articleHost": "thefinancialexpress.com.bd", "articlePath": r"^/(?!tags/|search/|author/)[a-z0-9-]+(?:/[a-z0-9-]+)+/?$"},
 )
+
+
+try:
+    from .source_catalog import CATALOG_PATH, classify_source, load_sources, matched_keywords, news_relevance, record_news_relevance
+    from .article_content import ingest_feed_content, fetch_public
+except ImportError:
+    from source_catalog import CATALOG_PATH, classify_source, load_sources, matched_keywords, news_relevance, record_news_relevance
+    from article_content import ingest_feed_content, fetch_public
+
+SOURCES = load_sources(BASE_SOURCES)
 
 
 class PlainText(HTMLParser):
@@ -220,18 +231,11 @@ class PublisherRedirect(HTTPRedirectHandler):
 
 
 def fetch_bytes(url, *, publisher_host=None):
+    """Bounded HTTPS fetch with public DNS pinning and exact-host redirects."""
     if not safe_url(url) or not url.startswith("https://"):
         raise ValueError("Only valid HTTPS feed URLs are accepted")
-    request = Request(url, headers={"User-Agent": "CyberWatch-Console/1.0 (+public security feed aggregation)",
-                                   "Accept": "application/json, application/atom+xml, application/rss+xml, application/xml;q=0.9, text/html;q=0.8"})
-    opener = build_opener(PublisherRedirect(publisher_host)).open if publisher_host else urlopen
-    with opener(request, timeout=TIMEOUT) as response:
-        if not response.geturl().startswith("https://"):
-            raise ValueError("Refusing a feed redirect to insecure HTTP")
-        payload = response.read(MAX_RESPONSE + 1)
-    if len(payload) > MAX_RESPONSE:
-        raise ValueError("Feed exceeds 8 MiB safety limit")
-    return payload
+    host = publisher_host or urlsplit(url).hostname
+    return fetch_public(url, {host}, max_bytes=MAX_RESPONSE)[0]
 
 
 def source_record(name, url, date, kind="primary"):
@@ -302,6 +306,34 @@ def organization(title, default):
     return default
 
 
+def annotate_news_record(event, source=None):
+    """Assess each article's topic without granting a publisher-wide exemption.
+
+    Copy before updating so retained records do not mutate the previous snapshot
+    used by content_fingerprint(). Broader publisher updates remain available in
+    Newsletters; Newsboard uses this explicit article-level decision.
+    """
+    if event.get("stream") != "news" and event.get("category") != "News":
+        return event
+    updated = dict(event)
+    decision = record_news_relevance(updated, source)
+    updated["newsRelevance"] = decision
+    updated["matchedKeywords"] = list(decision["matchedKeywords"])
+    return updated
+
+
+def _outside_newsboard(event):
+    return ((event.get("stream") == "news" or event.get("category") == "News") and
+            not event.get("newsRelevance", {}).get("relevant", False))
+
+
+def prioritize_records(events, limit):
+    """Prefer eligible security articles before applying a publisher's budget."""
+    # sorted is stable: publisher/chronological order is preserved within each
+    # relevance bucket. Non-news advisories retain their established ordering.
+    return sorted(events, key=_outside_newsboard)[:limit]
+
+
 def news_event(source, title, body, url, date, update):
     """Newsletter-style cards use a short feed excerpt, never a fabricated risk rating."""
     # Headline-only sources keep publisher article text out of the snapshot.
@@ -330,7 +362,7 @@ def news_event(source, title, body, url, date, update):
         evidence_note += " The Bangladesh coverage tag identifies a Bangladesh-based English newspaper, not the location of affected victims. Only headlines containing cyber are included; this does not establish a confirmed incident in Bangladesh."
     elif mentions_bangladesh and scope == "coverage":
         evidence_note += " The Bangladesh coverage tag reflects an explicit country mention in the headline or displayed feed excerpt; it does not establish a confirmed incident in Bangladesh."
-    return {
+    event = {
         "id": source["id"] + "-" + sha256(url.encode()).hexdigest()[:16],
         "title": title, "organization": source["name"],
         "summary": description, "description": description, "category": "News", "stream": "news",
@@ -347,8 +379,11 @@ def news_event(source, title, body, url, date, update):
         "confidence": "reported" if source.get("kind") == "secondary" else "confirmed",
         "severityBasis": "Newsletter and research entries are unrated. A headline or publication alone is not a local risk assessment.",
         "evidenceNote": evidence_note,
-        "sourceId": source["id"], "exploited": False,
+        "sourceId": source["id"], "sourceType": classify_source(source),
+        "matchedKeywords": matched_keywords(title, body, source.get("additionalKeywords", []), source.get("excludeKeywords", [])),
+        "exploited": False,
     }
+    return annotate_news_record(event, source)
 
 
 def feed_event(source, title, body, url, published, updated=None):
@@ -363,7 +398,7 @@ def feed_event(source, title, body, url, published, updated=None):
         raise ValueError("Incomplete feed entry")
     if update < date:
         update = date
-    if source.get("group") == "news" or source.get("stream") == "news":
+    if source.get("group") in {"news", "newsboard"} or source.get("stream") == "news":
         return news_event(source, title, full_body, url, date, update)
     if not body:
         raise ValueError("Incomplete advisory description")
@@ -378,7 +413,7 @@ def feed_event(source, title, body, url, published, updated=None):
     return {
         "id": source["id"] + "-" + sha256(url.encode()).hexdigest()[:16],
         "title": re.sub(r"^\d{4}-\d+:\s*", "", title),
-        "organization": "Google Chrome" if is_chrome else organization(title, source["name"] if source.get("group") == "bangladesh" else "Multiple vendors"),
+        "organization": "Google Chrome" if is_chrome else source.get("organization") or organization(title, source["name"] if source.get("group") == "bangladesh" else "Multiple vendors"),
         "summary": clip(body, 350), "description": body,
         "category": "Patch" if is_chrome else "Advisory", "severity": severity,
         "status": "mitigated" if is_chrome else "monitoring",
@@ -397,38 +432,89 @@ def feed_event(source, title, body, url, published, updated=None):
         "evidenceNote": "Source publication and update dates are preserved. " +
                         ("Mitigated means a vendor security update is available; it does not mean your devices have installed it." if is_chrome else "Recommendations below are analyst triage guidance; consult the source for exact vendor instructions.") +
                         " Automated feed summaries may be truncated; open the source for the complete advisory.",
-        "sourceId": source["id"], "exploited": exploited,
+        "sourceId": source["id"], "sourceType": classify_source(source),
+        "matchedKeywords": matched_keywords(title, full_body, source.get("additionalKeywords", []), source.get("excludeKeywords", [])),
+        "exploited": exploited,
     }
+
+
+def security_publication(title, body, url=""):
+    """Vendor products/releases enter intelligence only on explicit fix evidence."""
+    return bool(re.search(r"security[\s-]+(?:releases?|fix(?:es)?|updates?|patch(?:es)?|advisories|advisory)|CVE-\d{4}-\d{4,}|security vulnerabilities|\bcritical security\b", title + " " + text(body, None), re.I)
+                or "/blog/vulnerability/" in str(url))
+
+
+def feed_matches(source, title, body, link):
+    if source.get("cyberHeadlinesOnly") and not cyber_headline(title):
+        return False
+    if source.get("securityOnly") and not security_publication(title, body, link):
+        return False
+    if source.get("keywordFilter") and not news_relevance(title, text(body, 12000), source.get("additionalKeywords", []), source.get("excludeKeywords", []))["relevant"]:
+        return False
+    return True
+
+
+def feed_images(item):
+    """Use publisher-supplied image metadata; never scrape arbitrary image URLs."""
+    candidates = []
+    for entry in item.iter():
+        tag = entry.tag.rsplit("}", 1)[-1]
+        if tag in {"thumbnail", "content"} and entry.attrib.get("url") and (tag == "thumbnail" or entry.attrib.get("medium") == "image" or entry.attrib.get("type", "").startswith("image/")):
+            candidates.append({"url": entry.attrib["url"],
+                "alt": entry.findtext("{http://search.yahoo.com/mrss/}title") or "",
+                "caption": entry.findtext("{http://search.yahoo.com/mrss/}description") or "",
+                "credit": entry.findtext("{http://search.yahoo.com/mrss/}credit") or ""})
+        elif tag == "enclosure" and entry.attrib.get("type", "").startswith("image/"):
+            candidates.append(entry.attrib.get("url", ""))
+    return candidates
+
+
+def attach_feed_article(event, source, summary, content, item=None):
+    # Historical headline-only publisher policies remain in effect.
+    if source.get("headlineOnly"):
+        summary, content = "", ""
+    event["article"] = ingest_feed_content(source, summary=summary or "", content=content or "",
+        image_candidates=feed_images(item) if item is not None else (), article_url=event["sources"][0]["url"])
+    return annotate_news_record(event, source)
 
 
 def parse_rss(payload, source, limit=10):
     root = xml_root(payload)
+    rss = root.tag == "rss" and root.find("channel") is not None
+    rdf = root.tag == "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}RDF"
+    if not rss and not rdf:
+        raise ValueError("Expected an RSS/RDF feed, not a publisher error page")
     events, valid_items = [], 0
-    items = root.findall("./channel/item")[:100]
+    items = (root.findall("./channel/item") if rss else root.findall("{http://purl.org/rss/1.0/}item"))[:250]
+    def field(item, name):
+        return item.findtext(name) or item.findtext("{http://purl.org/rss/1.0/}" + name)
     for item in items:
         try:
-            title = text(item.findtext("title"), 220)
-            link = item.findtext("link")
-            date = item.findtext("pubDate") or item.findtext("{http://purl.org/dc/elements/1.1/}date")
+            title = text(field(item, "title"), 220)
+            link = field(item, "link")
+            date = field(item, "pubDate") or item.findtext("{http://purl.org/dc/elements/1.1/}date")
+            summary = field(item, "description") or ""
+            content = item.findtext("{http://purl.org/rss/1.0/modules/content/}encoded") or ""
+            body = content or summary
             if source.get("cyberHeadlinesOnly"):
                 link = newspaper_url(source, link)
-                if not title or not link:
-                    continue
-                iso(date)
-                valid_items += 1
-                if not cyber_headline(title):
-                    continue
-            events.append(feed_event(source, title, item.findtext("description"), link, date))
+            if not title or not safe_url(link):
+                continue
+            iso(date)
+            valid_items += 1
+            if not feed_matches(source, title, body, link):
+                continue
+            if not body and source.get("sourceType") == "vendor" and source.get("stream", "intelligence") == "intelligence" and source.get("group") not in {"news", "newsboard"}:
+                body = "Official " + source.get("organization", source["name"]) + " security publication. Consult the linked vendor notice for affected releases and remediation details."
+            event = feed_event(source, title, body, link, date)
+            events.append(attach_feed_article(event, source, summary, content, item))
         except (ValueError, TypeError, OverflowError):
             continue
-        if len(events) >= limit:
-            break
-    # A valid newspaper feed may have no cyber headline in its rolling window.
-    healthy_filtered = (source.get("cyberHeadlinesOnly") and root.tag == "rss" and root.find("channel") is not None
+    healthy_filtered = ((source.get("cyberHeadlinesOnly") or source.get("keywordFilter") or source.get("securityOnly"))
                         and (valid_items or not items))
     if not events and not healthy_filtered:
         raise ValueError("RSS feed returned no usable dated records")
-    return events
+    return prioritize_records(events, limit)
 
 
 def atom_content(item):
@@ -437,8 +523,8 @@ def atom_content(item):
         if element is None:
             continue
         if list(element):
-            # PHP uses Atom XHTML nodes, while Chrome uses an escaped HTML string.
-            return " ".join(element.itertext())
+            # Keep paragraph boundaries for the text-only article reader.
+            return re.sub(r"<(/?)ns\d+:", r"<\1", " ".join(ET.tostring(child, encoding="unicode") for child in element))
         if element.text and element.text.strip():
             return element.text
     return ""
@@ -446,29 +532,44 @@ def atom_content(item):
 
 def parse_atom(payload, source, limit=8):
     root = xml_root(payload)
-    events = []
-    for item in root.findall("a:entry", ATOM)[:100]:
+    if root.tag != "{http://www.w3.org/2005/Atom}feed":
+        raise ValueError("Expected an Atom feed, not a publisher error page")
+    events, valid_items = [], 0
+    items = root.findall("a:entry", ATOM)[:250]
+    for item in items:
         title = item.findtext("a:title", "", ATOM)
         body = atom_content(item)
-        # Exclude dev/beta/product-only announcements and duplicate mobile builds
-        # without any explicit security-fix information.
         if source["id"] == "chrome" and ("stable" not in title.lower() or not re.search(r"security fixes|CVE-\d{4}-", body, re.I)):
             continue
-        # PHP's archive/id is permanent, unlike the rolling homepage anchor.
         link = item.findtext("a:id", "", ATOM) if source["id"] == "php" else None
         link = safe_url(link) or next((i.attrib.get("href") for i in item.findall("a:link", ATOM)
                                       if i.attrib.get("rel", "alternate") == "alternate"), None)
+        published = item.findtext("a:published", "", ATOM)
+        updated = item.findtext("a:updated", "", ATOM)
+        if not published and source["id"] != "php":
+            published = updated
         try:
-            events.append(feed_event(source, title, body, link,
-                                     item.findtext("a:published", "", ATOM),
-                                     item.findtext("a:updated", "", ATOM)))
+            if not title or not safe_url(link):
+                continue
+            iso(published)
+            valid_items += 1
+            if not feed_matches(source, title, body, link):
+                continue
+            event = feed_event(source, title, body, link, published, updated)
+            content = body if item.find("a:content", ATOM) is not None else ""
+            summary = item.findtext("a:summary", "", ATOM) or (body if not content else "")
+            events.append(attach_feed_article(event, source, summary, content, item))
         except (ValueError, TypeError, OverflowError):
             continue
-        if len(events) >= limit:
-            break
-    if not events:
+    healthy_filtered = ((source.get("keywordFilter") or source.get("securityOnly")) and (valid_items or not items))
+    if not events and not healthy_filtered:
         raise ValueError("Atom feed returned no usable dated records")
-    return events
+    return prioritize_records(events, limit)
+
+
+def parse_feed(payload, source, limit=30):
+    root = xml_root(payload)
+    return parse_atom(payload, source, limit) if root.tag == "{http://www.w3.org/2005/Atom}feed" else parse_rss(payload, source, limit)
 
 
 def cyber_headline(value):
@@ -659,8 +760,9 @@ def retain_newspaper_headlines(source, events, previous, timestamp):
                 str(event.get("publishedAt", "")) < cutoff or not event.get("sources") or
                 not newspaper_url(source, event["sources"][0].get("url"))):
             continue
-        retained.setdefault(event["id"], event)
-    return sorted(retained.values(), key=lambda event: (event["publishedAt"], event["id"]), reverse=True)[:20]
+        retained.setdefault(event["id"], annotate_news_record(event, source))
+    ordered = sorted(retained.values(), key=lambda event: (event["publishedAt"], event["id"]), reverse=True)
+    return prioritize_records(ordered, 20)
 
 
 class CirtIndex(HTMLParser):
@@ -756,6 +858,117 @@ def parse_cirt(payload, source, limit=10):
     return events
 
 
+class NginxAdvisories(HTMLParser):
+    """Read individual security-list paragraphs without relying on page layout."""
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.entries, self.parts, self.links = [], None, []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "p":
+            self.parts, self.links = [], []
+        elif self.parts is not None:
+            if tag == "br":
+                self.parts.append("\n")
+            if tag == "a":
+                self.links.append(dict(attrs).get("href", ""))
+
+    def handle_data(self, value):
+        if self.parts is not None:
+            self.parts.append(value)
+
+    def handle_endtag(self, tag):
+        if tag == "p" and self.parts is not None:
+            content = "".join(self.parts).strip()
+            if CVE.search(content):
+                self.entries.append((content, self.links))
+            self.parts = None
+
+
+def nginx_release_dates(payload):
+    """Map published CVE references to dated fixed releases, not invented dates."""
+    value = payload.decode("utf-8", errors="replace") if isinstance(payload, bytes) else str(payload)
+    headings = list(re.finditer(r"^Changes with nginx\s+(\S+)\s+(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\s*$", value, re.M))
+    dates = {}
+    for index, heading in enumerate(headings):
+        try:
+            date = datetime.strptime(heading.group(2), "%d %b %Y").date().isoformat()
+        except ValueError:
+            continue
+        body = value[heading.end():headings[index + 1].start() if index + 1 < len(headings) else None]
+        for cve in CVE.findall(body):
+            candidate = (date, heading.group(1))
+            if cve.upper() not in dates or candidate[0] < dates[cve.upper()][0]:
+                dates[cve.upper()] = candidate
+    return dates
+
+
+def parse_nginx(payload, source, changes, limit=20):
+    parser = NginxAdvisories()
+    parser.feed(payload.decode("utf-8", errors="replace"))
+    dates = nginx_release_dates(changes)
+    events = []
+    for raw_body, links in parser.entries:
+        cves = sorted(set(x.upper() for x in CVE.findall(raw_body)))
+        dated = [dates[cve] for cve in cves if cve in dates]
+        if not dated:
+            continue
+        date, release = min(dated)
+        lines = [line.strip() for line in raw_body.splitlines() if line.strip()]
+        title = "NGINX: " + lines[0]
+        event = feed_event(source, title, raw_body, source["url"], date)
+        event["id"] = "nginx-" + cves[0].lower()
+        event["cves"] = cves
+        severity = re.search(r"Severity:\s*(critical|high|medium|low|major)", raw_body, re.I)
+        if severity:
+            label = severity.group(1).lower()
+            event["severity"] = label if label != "major" else "unknown"
+            event["severityBasis"] = "NGINX labels this advisory " + label + "." + (" This project does not translate the vendor's major label into a CVSS severity." if label == "major" else " The vendor label is preserved without an independent CVSS assessment.")
+        event["timeline"] = [{"date": date, "title": "Fixed NGINX release published", "description": "NGINX " + release + " release notes reference " + ", ".join(cves) + ". This is the fixed-release date, not an independently verified CVE publication date."}]
+        event["evidenceNote"] = "The displayed date is the earliest fixed-release date linked to this CVE in NGINX's published CHANGES file. The advisory index itself does not provide publication dates. Version ranges and severity are supplied by NGINX; this advisory is not evidence of exploitation."
+        event["sources"] = [source_record(source["name"], source["url"], None), source_record("NGINX dated release notes", source["changesUrl"], date)]
+        for link in links:
+            if safe_url(link) and urlsplit(link).hostname in {"my.f5.com", "www.cve.org", "nvd.nist.gov"}:
+                event["sources"].append(source_record("Vendor advisory" if "f5.com" in link else "CVE record", link, None))
+            if len(event["sources"]) == 6:
+                break
+        event["technicalDetails"] = {"affectedSystems": [line for line in lines if line.startswith("Vulnerable:")],
+                                      "mitigation": [line for line in lines if line.startswith("Not vulnerable:")],
+                                      "limitations": ["Verify the exact affected NGINX configuration against the vendor advisory before assigning local risk."]}
+        # The compact technical bulletin is available in the reader as a feed
+        # excerpt; the project does not mark an entire index page as a full article.
+        event["article"] = ingest_feed_content(source, summary=raw_body, article_url=source["url"])
+        events.append(event)
+    if not events:
+        raise ValueError("NGINX advisory index contains no CVEs with verifiable release dates")
+    return sorted(events, key=lambda event: (event["publishedAt"], event["id"]), reverse=True)[:limit]
+
+
+def retain_source_records(source, events, previous, timestamp):
+    """Persist a bounded rolling history across successful feed rotations."""
+    if source.get("cyberHeadlinesOnly"):
+        return retain_newspaper_headlines(source, events, previous, timestamp)
+    days = source.get("retentionDays", 30)
+    cutoff = (datetime.fromisoformat(timestamp.replace("Z", "+00:00")) - timedelta(days=days)).date().isoformat()
+    latest, canonical = {}, set()
+    for event in events + previous.get("events", []):
+        if event.get("sourceId") != source["id"] or str(event.get("publishedAt", "")) < cutoff or not event.get("sources"):
+            continue
+        event = annotate_news_record(event, source)
+        if source.get("keywordFilter"):
+            if event.get("stream") == "news" or event.get("category") == "News":
+                if _outside_newsboard(event):
+                    continue
+            elif not feed_matches(source, event.get("title", ""), event.get("description", ""), event["sources"][0]["url"]):
+                continue
+        key = canonical_url(event["sources"][0]["url"]) if event.get("stream") == "news" else event["id"]
+        if event["id"] not in latest and key not in canonical:
+            latest[event["id"]] = event
+            canonical.add(key)
+    ordered = sorted(latest.values(), key=lambda event: (event["publishedAt"], event["id"]), reverse=True)
+    return prioritize_records(ordered, source.get("maxItems", 30))
+
+
 def read_json(path, default=None):
     if not path.exists():
         return default
@@ -766,42 +979,65 @@ def read_json(path, default=None):
 def collect_source(source, previous, timestamp, fetcher=fetch_bytes):
     errors, partial_events = [], []
     source_fetcher = fetcher
-    if source.get("cyberHeadlinesOnly") and fetcher is fetch_bytes:
-        source_fetcher = lambda url: fetch_bytes(url, publisher_host=source["articleHost"])
+    if fetcher is fetch_bytes:
+        # Only administrator-configured feed/publisher hosts may be contacted.
+        # Public IP pinning also applies to legacy feeds and catalogue overrides.
+        hosts = {urlsplit(url).hostname for url in source["feedUrls"]} | set(source.get("redirectHosts", []))
+        if source.get("articleHost"):
+            hosts.add(source["articleHost"])
+        if source.get("changesUrl"):
+            hosts.add(urlsplit(source["changesUrl"]).hostname)
+        source_fetcher = lambda url: fetch_public(url, hosts, max_bytes=MAX_RESPONSE)[0]
+    limit = source.get("maxItems", 20 if source.get("stream") == "news" or source.get("group") == "news" else 10)
     for feed_url in source["feedUrls"]:
         try:
             payload = source_fetcher(feed_url)
             if source["format"] == "kev":
                 events = parse_kev(payload)
-            elif source["format"] == "rss":
-                events = parse_rss(payload, source)
+            elif source["format"] in {"rss", "rdf"}:
+                events = parse_rss(payload, source, limit=limit)
             elif source["format"] == "cirt":
                 events = parse_cirt(payload, source)
             elif source["format"] == "newspaper":
                 events = parse_newspaper(payload, source, fetcher=source_fetcher)
+            elif source["format"] == "nginx":
+                events = parse_nginx(payload, source, source_fetcher(source["changesUrl"]), limit=limit)
+            elif source["format"] == "auto":
+                events = parse_feed(payload, source, limit=limit)
             else:
-                events = parse_atom(payload, source)
+                events = parse_atom(payload, source, limit=limit)
             if source.get("cyberHeadlinesOnly"):
                 events = retain_newspaper_headlines(source, events, previous, timestamp)
+            elif source.get("retentionDays") or source.get("group") in {"news", "newsboard"}:
+                events = retain_source_records(source, events, previous, timestamp)
+            events = [annotate_news_record(event, source) for event in events]
             return events, {"id": source["id"], "name": source["name"], "url": source["url"],
                             "kind": source.get("kind", "primary"), "group": source.get("group", "intelligence"),
+                            "sourceType": classify_source(source),
                             "description": source.get("description", "Official security intelligence feed."),
                             "status": "ok", "lastSuccessAt": timestamp,
                             "lastAttemptAt": timestamp, "itemCount": len(events), "error": None}
         except (OSError, ValueError, TypeError, ET.ParseError) as error:
             if isinstance(error, PartialNewspaperCollection):
                 partial_events.extend(error.events)
-            # No response bodies or credentials are written into public metadata.
-            errors.append("HTTP " + str(error.code) if hasattr(error, "code") else type(error).__name__)
+            code = getattr(error, "code", None)
+            # Expose only a status code, never a proxy URL, credential or body.
+            reported_status = re.search(r"(?:HTTP\s+|Tunnel connection failed:\s*)([1-5]\d\d)\b", str(error))
+            errors.append("HTTP " + str(code) if code is not None else
+                          "HTTP " + reported_status.group(1) if reported_status else type(error).__name__)
     events = [event for event in previous.get("events", []) if event.get("sourceId") == source["id"]]
     if source.get("cyberHeadlinesOnly"):
         events = retain_newspaper_headlines(source, partial_events, previous, timestamp)
+    elif source.get("retentionDays") or source.get("group") in {"news", "newsboard"}:
+        events = retain_source_records(source, partial_events, previous, timestamp)
+    events = [annotate_news_record(event, source) for event in events]
     prior = next((s for s in previous.get("sources", []) if s.get("id") == source["id"]), {})
     message = "Collection failed (" + ", ".join(errors) + "). " + ("Showing the last available records." if events else "No saved records available.")
     if partial_events and events:
         message = "Some publisher article dates could not be verified. Showing verified headlines and any previously collected records; the last complete success time is unchanged."
     return events, {"id": source["id"], "name": source["name"], "url": source["url"],
                     "kind": source.get("kind", "primary"), "group": source.get("group", "intelligence"),
+                    "sourceType": classify_source(source),
                     "description": source.get("description", "Official security intelligence feed."),
                     "status": "error", "lastSuccessAt": prior.get("lastSuccessAt"),
                     "lastAttemptAt": timestamp, "itemCount": len(events), "error": message}
@@ -810,17 +1046,39 @@ def collect_source(source, previous, timestamp, fetcher=fetch_bytes):
 def canonical_url(value):
     parsed = urlsplit(value)
     query = urlencode([(key, item) for key, item in parse_qsl(parsed.query, keep_blank_values=True)
-                       if not key.lower().startswith("utm_")])
+                       if not key.lower().startswith("utm_") and key.lower() not in {"fbclid", "gclid", "at_medium", "at_campaign"}])
     return urlunsplit((parsed.scheme.lower(), parsed.netloc.lower(), parsed.path.rstrip("/"), query, parsed.fragment))
 
 
 def content_fingerprint(events):
     """Health checks and timestamps are operational metadata, not a data update."""
-    normalized = sorted(events, key=lambda event: event["id"])
+    normalized = []
+    for event in sorted(events, key=lambda event: event["id"]):
+        record = dict(event)
+        if isinstance(record.get("article"), dict):
+            record["article"] = {key: value for key, value in record["article"].items() if key != "fetchedAt"}
+        normalized.append(record)
     return sha256(json.dumps(normalized, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
-def assemble(results, curated, timestamp, limit, previous=None, bangladesh_curated=None):
+def fair_limit(events, limit):
+    """Round-robin source budgets stop a busy world feed hiding all advisories."""
+    buckets = {}
+    for event in sorted(events, key=lambda item: (item["updatedAt"], item["publishedAt"], item["id"]), reverse=True):
+        buckets.setdefault(event["sourceId"], []).append(event)
+    for source_id, items in buckets.items():
+        buckets[source_id] = sorted(items, key=_outside_newsboard)
+    selected, offset = [], 0
+    while len(selected) < limit:
+        batch = [items[offset] for items in buckets.values() if len(items) > offset]
+        if not batch:
+            break
+        selected.extend(batch[:limit - len(selected)])
+        offset += 1
+    return sorted(selected, key=lambda item: (item["updatedAt"], item["publishedAt"], item["id"]), reverse=True)
+
+
+def assemble(results, curated, timestamp, limit, previous=None, bangladesh_curated=None, source_configs=None):
     previous = previous or {}
     events, sources = [], []
     for group, source in results:
@@ -835,6 +1093,9 @@ def assemble(results, curated, timestamp, limit, previous=None, bangladesh_curat
                         "kind": "curated", "group": "bangladesh", "status": "snapshot", "lastSuccessAt": None,
                         "description": "Reviewed national advisories, local threat reports and cyber activities with explicit geographic context.",
                         "lastAttemptAt": None, "itemCount": len(bangladesh_curated), "error": None})
+    source_lookup = {source["id"]: source for source in (SOURCES if source_configs is None else source_configs)}
+    for source in sources:
+        source_lookup.setdefault(source["id"], source)
     # A curated record can replace the same stable ID. Different publications
     # about the same CVE are retained: their dates and evidence may differ.
     by_id = {event["id"]: event for event in events}
@@ -852,7 +1113,19 @@ def assemble(results, curated, timestamp, limit, previous=None, bangladesh_curat
                 if candidate.get("stream", "intelligence") == stream and canonical_url(candidate["sources"][0]["url"]) in evidence_urls:
                     del by_id[event_id]
             by_id[event["id"]] = event
-    events = sorted(by_id.values(), key=lambda e: (e["updatedAt"], e["publishedAt"], e["id"]), reverse=True)[:limit]
+    # The same publisher article can appear in technology, business and world
+    # feeds. Merge its exact canonical URL, but retain independent reports and
+    # separate advisory records sharing an index URL or CVE.
+    articles, deduplicated = set(), []
+    for event in by_id.values():
+        if event.get("stream") == "news" and event.get("sources"):
+            article_url = canonical_url(event["sources"][0]["url"])
+            if article_url in articles:
+                continue
+            articles.add(article_url)
+        deduplicated.append(event)
+    assessed = [annotate_news_record(event, source_lookup.get(event.get("sourceId"))) for event in deduplicated]
+    events = fair_limit(assessed, limit)
     for source in sources:
         source["itemCount"] = sum(event["sourceId"] == source["id"] for event in events)
     changed = content_fingerprint(events) != content_fingerprint(previous.get("events", []))
@@ -862,12 +1135,14 @@ def assemble(results, curated, timestamp, limit, previous=None, bangladesh_curat
 
 
 def write_atomic(path, data):
+    payload = (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    if len(payload) > MAX_SNAPSHOT_BYTES:
+        raise ValueError("Snapshot exceeds 32 MiB; reduce the record limit or reader content before publication")
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix=".incidents-", suffix=".json", dir=path.parent)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(data, handle, ensure_ascii=False, indent=2)
-            handle.write("\n")
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(payload)
         os.replace(temporary, path)
     finally:
         if os.path.exists(temporary):
@@ -879,10 +1154,12 @@ def main():
     parser.add_argument("--output", type=Path, default=ROOT / "dist/data/incidents.json")
     parser.add_argument("--curated", type=Path, default=ROOT / "data/curated.json")
     parser.add_argument("--bangladesh-curated", type=Path, default=ROOT / "data/bangladesh-curated.json")
-    parser.add_argument("--limit", type=int, default=300, help="Maximum displayed records (1–500, default 300)")
+    parser.add_argument("--limit", type=int, default=1200, help="Maximum displayed records (1–2000, default 1200)")
+    parser.add_argument("--sources", type=Path, default=CATALOG_PATH, help="Local administrator source catalogue")
     args = parser.parse_args()
-    if not 1 <= args.limit <= 500:
-        parser.error("--limit must be between 1 and 500")
+    if not 1 <= args.limit <= 2000:
+        parser.error("--limit must be between 1 and 2000")
+    sources = load_sources(BASE_SOURCES, args.sources)
     curated = read_json(args.curated, [])
     bangladesh_curated = read_json(args.bangladesh_curated, [])
     if not isinstance(curated, list) or not isinstance(bangladesh_curated, list):
@@ -898,9 +1175,20 @@ def main():
         previous = {}
         print("Existing snapshot is invalid; it cannot be used as an outage fallback.", file=sys.stderr)
     timestamp = now_iso()
-    with ThreadPoolExecutor(max_workers=min(8, len(SOURCES))) as pool:
-        results = list(pool.map(lambda source: collect_source(source, previous, timestamp), SOURCES))
-    snapshot = assemble(results, curated, timestamp, args.limit, previous, bangladesh_curated)
+    with ThreadPoolExecutor(max_workers=min(10, len(sources))) as pool:
+        results = list(pool.map(lambda source: collect_source(source, previous, timestamp), sources))
+    # Enrich before assembly so content changes and the final display budget are
+    # reflected in the existing fingerprint and atomic publication path.
+    from article_content import enrich_events
+    collected_events = [event for records, _registry in results for event in records]
+    enrich_events(collected_events, {source["id"]: source for source in sources}, previous, timestamp)
+    for event in collected_events:
+        if event.get("sourceType") == "vendor" and event.get("article", {}).get("status") in {"full", "excerpt"}:
+            # Some official feeds carry only a headline. Permitted source text
+            # can supply CVE identifiers without inventing severity/exploitation.
+            article_text = " ".join(event["article"].get("paragraphs", []))
+            event["cves"] = sorted(set(event.get("cves", [])) | {cve.upper() for cve in CVE.findall(article_text)})[:500]
+    snapshot = assemble(results, curated, timestamp, args.limit, previous, bangladesh_curated, source_configs=sources)
     validate_snapshot(snapshot)
     if not snapshot["events"]:
         raise SystemExit("No usable records collected or retained; existing output was not changed.")

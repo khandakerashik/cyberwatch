@@ -1,0 +1,212 @@
+{
+  "version": 1,
+  "maxTitleChars": 1000,
+  "maxLeadChars": 1600,
+  "signals": [
+    {
+      "label": "cyberattack",
+      "pattern": "\\bcyber[\\s-]*(?:attacks?|assaults?|incidents?|war(?:fare)?|espionage)\\b|সাইবার\\s*(?:আক্রমণ|হামলা|অ্যাটাক)",
+      "incident": true
+    },
+    {
+      "label": "cybersecurity",
+      "pattern": "\\b(?:cyber[\\s-]*(?:security|crime|criminals?|threats?|defen[cs]e|risks?|drills?|alerts?)|infosec|information security|application security|network security|cloud security|endpoint security|AI security|LLM security|API security)\\b|সাইবার\\s*(?:নিরাপত্তা|সিকিউরিটি|ড্রিল|মহড়া|মহড়া|সতর্কতা)|(?<![A-Za-z0-9_])(?:cybersécurité|cybersicherheit|ciberseguridad|cybersicurezza|sicurezza informatica|vulnerabilità informatiche)(?![A-Za-z0-9_])",
+      "incident": false
+    },
+    {
+      "label": "hack",
+      "pattern": "\\b(?:hackers?|hacktivis(?:t|m)s?)\\b|হ্যাকার|হ্যাকিং",
+      "incident": true,
+      "reject": "\\b(?:life|kitchen|cooking|beauty|fashion|travel|cleaning|gardening|productivity|sleep|diet|fitness|money[ -]+saving)[ -]+hacks?\\b|\\bhack[ -]+(?:your|the)[ -]+(?:sleep|diet|routine|workout)\\b|\\bhackathons?\\b|\\bhack(?:s|ed|ing)?[ -]+(?:down[ -]+)?(?:trees?|wood|branches?|bushes?)\\b"
+    },
+    {
+      "label": "hack",
+      "pattern": "\\bhack(?:s|ed|ing)?\\b",
+      "incident": true,
+      "context": "\\b(?:cyber\\w*|software|computers?|networks?|servers?|websites?|online|digital|databases?|cloud|applications?|apps?|browsers?|firmware|routers?|firewalls?|VPNs?|APIs?|SSH|OAuth|authentication|credentials?|passwords?|accounts?|emails?|crypto(?:currency)?|bitcoin|blockchain|tokens?|ransomware|malware|spyware|Windows|Linux|Android|iOS|GitLab|NGINX|Node[ .]?js|OpenSSL|libraries|library|packages?|dependencies|kernel|operating systems?|LLMs?|AI agents?|AI models?|guardrails?|sandboxes?|code|HTTP|DNS|SS7|Diameter|PLC|SCADA|critical infrastructure|AI|IT systems?|admins?|developers?|devs?|modules?|PHP|Drupal|web|mobile|phones?|games?|information|records?|files|leaked|secrets?|exchanges?)\\b",
+      "reject": "\\b(?:life|kitchen|cooking|beauty|fashion|travel|cleaning|gardening|productivity|sleep|diet|fitness|money[ -]+saving)[ -]+hacks?\\b|\\bhack[ -]+(?:your|the)[ -]+(?:sleep|diet|routine|workout)\\b|\\bhackathons?\\b|\\bhack(?:s|ed|ing)?[ -]+(?:down[ -]+)?(?:trees?|wood|branches?|bushes?)\\b"
+    },
+    {
+      "label": "data breach",
+      "pattern": "\\b(?:data|security|database|customer|patient|account|network|email)[\\s-]+(?:breach(?:es|ed)?|leaks?|exposure)\\b|তথ্য\\s*(?:ফাঁস|চুরি)",
+      "incident": true
+    },
+    {
+      "label": "ransomware",
+      "pattern": "\\b(?:ransomware|cyber[\\s-]*extortion)\\b|র‍্যানসমওয়্যার|র‍্যানসমওয়্যার",
+      "incident": true
+    },
+    {
+      "label": "malware",
+      "pattern": "\\b(?:malware|spyware|botnets?|keyloggers?|rootkits?|infostealers?|info[ -]?stealers?|ransomware)\\b|ম্যালওয়্যার|ম্যালওয়্যার",
+      "incident": true
+    },
+    {
+      "label": "malware",
+      "pattern": "\\btrojans?\\b",
+      "incident": true,
+      "context": "\\b(?:cyber\\w*|software|computers?|networks?|servers?|websites?|online|digital|databases?|cloud|applications?|apps?|browsers?|firmware|routers?|firewalls?|VPNs?|APIs?|SSH|OAuth|authentication|credentials?|passwords?|accounts?|emails?|crypto(?:currency)?|bitcoin|blockchain|tokens?|ransomware|malware|spyware|Windows|Linux|Android|iOS|GitLab|NGINX|Node[ .]?js|OpenSSL|libraries|library|packages?|dependencies|kernel|operating systems?|LLMs?|AI agents?|AI models?|guardrails?|sandboxes?|code|HTTP|DNS|SS7|Diameter|PLC|SCADA|critical infrastructure|AI|IT systems?|admins?|developers?|devs?|modules?|PHP|Drupal|web|mobile|phones?|games?|information|records?|files|leaked|secrets?)\\b"
+    },
+    {
+      "label": "phishing",
+      "pattern": "\\b(?:spear[\\s-]*)?phishing\\b|\\b(?:smishing|vishing)\\b|ফিশিং",
+      "incident": true
+    },
+    {
+      "label": "DDoS",
+      "pattern": "\\bddos\\b|\\b(?:distributed[\\s-]+)?denial[\\s-]+of[\\s-]+service\\b",
+      "incident": true
+    },
+    {
+      "label": "zero-day",
+      "pattern": "\\b(?:zero|0)[\\s-]*days?\\b",
+      "incident": true
+    },
+    {
+      "label": "vulnerability",
+      "pattern": "\\bCVE-\\d{4}-\\d{4,}\\b|\\b(?:remote code execution|arbitrary code execution|SQL injection|command injection|cross[ -]site scripting|server[ -]side request forgery|RCE|SSRF|XSS|XXE|IDOR|CSRF)\\b",
+      "incident": true
+    },
+    {
+      "label": "vulnerability",
+      "pattern": "\\b(?:vulnerabilit(?:y|ies)|security flaws?|security bugs?|flaws?|code execution|buffer overflow|use[ -]after[ -]free|memory corruption|auth(?:entication|orization)?[ -]+bypass)\\b",
+      "incident": true,
+      "context": "\\b(?:cyber\\w*|software|computers?|networks?|servers?|websites?|online|digital|databases?|cloud|applications?|apps?|browsers?|firmware|routers?|firewalls?|VPNs?|APIs?|SSH|OAuth|authentication|credentials?|passwords?|accounts?|emails?|crypto(?:currency)?|bitcoin|blockchain|tokens?|ransomware|malware|spyware|Windows|Linux|Android|iOS|GitLab|NGINX|Node[ .]?js|OpenSSL|libraries|library|packages?|dependencies|kernel|operating systems?|LLMs?|AI agents?|AI models?|guardrails?|sandboxes?|code|HTTP|DNS|SS7|Diameter|PLC|SCADA|critical infrastructure|AI|IT systems?|admins?|developers?|devs?|modules?|PHP|Drupal|web|mobile|phones?|games?|information|records?|files|leaked|secrets?)\\b"
+    },
+    {
+      "label": "credential theft",
+      "pattern": "\\b(?:credentials?|passwords?|API[ -]?keys?|private[ -]?keys?|signing[ -]?keys?|secrets?)[\\s\\S]{0,100}\\b(?:exposed|stolen|leaked|theft|stealing|hardcoded|guessable)\\b|\\b(?:exposed|stolen|leaked|hardcoded)[\\s\\S]{0,100}\\b(?:credentials?|passwords?|API[ -]?keys?|private[ -]?keys?|signing[ -]?keys?|secrets?)\\b|\\b(?:credential stuffing|account takeover)\\b",
+      "incident": true
+    },
+    {
+      "label": "supply chain",
+      "pattern": "\\bsupply[\\s-]+chain[\\s-]+(?:attacks?|compromise|breach)\\b",
+      "incident": true
+    },
+    {
+      "label": "cryptocurrency theft",
+      "pattern": "\\b(?:crypto(?:currency)?|bitcoin|blockchain|digital[\\s-]+assets?)[\\s\\S]{0,100}\\b(?:hack(?:s|ed|ers?|ing)?|theft|stolen|heist|drained|breach)\\b|\\b(?:theft|stolen|heist|drained)[\\s\\S]{0,100}\\b(?:crypto(?:currency)?|bitcoin|blockchain|digital[\\s-]+assets?)\\b",
+      "incident": true
+    },
+    {
+      "label": "system compromise",
+      "pattern": "\\b(?:software|computer|network|cloud|website|server|IT[ -]+(?:system|network)|Microsoft 365|email|online|user|administrator)[\\s\\S]{0,70}\\b(?:compromis(?:e|ed|es)|intrusions?|unauthori[sz]ed access)\\b",
+      "incident": true
+    },
+    {
+      "label": "security update",
+      "pattern": "\\bsecurity[\\s-]+(?:updates?|patch(?:es|ed)?|releases?|advisories|advisory|fix(?:es|ed)?)\\b",
+      "incident": true
+    },
+    {
+      "label": "backdoor",
+      "pattern": "\\bbackdoors?\\b",
+      "incident": true,
+      "context": "\\b(?:cyber\\w*|software|computers?|networks?|servers?|websites?|online|digital|databases?|cloud|applications?|apps?|browsers?|firmware|routers?|firewalls?|VPNs?|APIs?|SSH|OAuth|authentication|credentials?|passwords?|accounts?|emails?|crypto(?:currency)?|bitcoin|blockchain|tokens?|ransomware|malware|spyware|Windows|Linux|Android|iOS|GitLab|NGINX|Node[ .]?js|OpenSSL|libraries|library|packages?|dependencies|kernel|operating systems?|LLMs?|AI agents?|AI models?|guardrails?|sandboxes?|code|HTTP|DNS|SS7|Diameter|PLC|SCADA|critical infrastructure|AI|IT systems?|admins?|developers?|devs?|modules?|PHP|Drupal|web|mobile|phones?|games?|information|records?|files|leaked|secrets?)\\b"
+    },
+    {
+      "label": "malicious software",
+      "pattern": "\\b(?:malicious|backdoored|poisoned|trojanized)[\\s\\S]{0,60}\\b(?:packages?|extensions?|software|code|APIs?|dependencies|repositories|models?)\\b|\\b(?:packages?|extensions?|repositories|software)[\\s\\S]{0,70}\\b(?:poisoned|backdoored|hijack(?:ed|ing)?|malicious)\\b|\\bmalicious[ -]+(?:emails?|websites?|documents?|instructions?|prompts?|plugins?)\\b",
+      "incident": true
+    },
+    {
+      "label": "exploitation",
+      "pattern": "\\b(?:exploit(?:ed|ation|s)?|attackers?|intrusions?|interception|hijack(?:s|ed|ing)?|hardware implant|exfiltrat(?:ion|e|ed))\\b",
+      "incident": true,
+      "context": "\\b(?:cyber\\w*|software|computers?|networks?|servers?|websites?|online|digital|databases?|cloud|applications?|apps?|browsers?|firmware|routers?|firewalls?|VPNs?|APIs?|SSH|OAuth|authentication|credentials?|passwords?|accounts?|emails?|crypto(?:currency)?|bitcoin|blockchain|tokens?|ransomware|malware|spyware|Windows|Linux|Android|iOS|GitLab|NGINX|Node[ .]?js|OpenSSL|libraries|library|packages?|dependencies|kernel|operating systems?|LLMs?|AI agents?|AI models?|guardrails?|sandboxes?|code|HTTP|DNS|SS7|Diameter|PLC|SCADA|critical infrastructure|AI|IT systems?|admins?|developers?|devs?|modules?|PHP|Drupal|web|mobile|phones?|games?|information|records?|files|leaked|secrets?)\\b"
+    },
+    {
+      "label": "prompt injection",
+      "pattern": "\\bprompt[ -]+injection\\b|\\bjailbreak(?:s|ing)?\\b",
+      "incident": true,
+      "context": "\\b(?:prompt|AI|LLM|model|chatbot|agent)\\b"
+    },
+    {
+      "label": "AI security",
+      "pattern": "\\b(?:bypass|evad(?:e|ing)|disabl(?:e|es|ed)|attacks?|poison(?:ed|ing)?|leak(?:ed|s|age)?|security|guardrails?|insider threats?)\\b",
+      "incident": true,
+      "context": "\\b(?:AI agents?|LLMs?|language models?|safety classifiers?|AI security|agent[ -]planning|prompt|sandboxes?)\\b"
+    },
+    {
+      "label": "identity security",
+      "pattern": "\\b(?:passkeys?|passwordless|password managers?|password security|multi[ -]?factor authentication|two[ -]?factor authentication|MFA|FIDO2?|zero[ -]trust|identity security|access controls?|OAuth|SSO|continuous authorization)\\b",
+      "incident": false
+    },
+    {
+      "label": "threat research",
+      "pattern": "\\b(?:threat model(?:l?ing)?|threat hunt(?:ing)?|threat intelligence|threat landscape|threat actors?|incident response|digital forensics|security operations|red team(?:ing)?|penetration test(?:ing)?|pentest(?:ing)?|security audit|CTF competitions?|capture[ -]the[ -]flag|digital defense report|cyber drill)\\b|\\b(?:CISOs?|security governance|cybersecurity awareness)\\b",
+      "incident": false
+    },
+    {
+      "label": "cryptographic security",
+      "pattern": "\\b(?:SSL/TLS|TLS|certificate authorit(?:y|ies)|CA certificates?|certificate ecosystems?|post[ -]quantum authentication|quantum decryption|cryptograph(?:y|ic))\\b|\\b(?:trust certificates?|CA keys?|PKI)\\b",
+      "incident": false
+    },
+    {
+      "label": "digital evidence loss",
+      "pattern": "\\b(?:misplaced|missing|lost|cannot account for)[\\s\\S]{0,90}\\b(?:data storage|storage|classified|sensitive)[\\s\\S]{0,35}\\b(?:devices|records|data)\\b",
+      "incident": true
+    },
+    {
+      "label": "telecom security",
+      "pattern": "\\b(?:SS7|Diameter|signaling)[\\s\\S]{0,70}\\b(?:attacks?|interception|flaws?|exploits?)\\b",
+      "incident": true
+    },
+    {
+      "label": "data breach",
+      "pattern": "\\bbreach(?:es|ed)?\\b",
+      "context": "\\b(?:websites?|online|software|databases?|accounts?|emails?|users?|games?|credentials?|secrets?|servers?|networks?|files|records|data)\\b",
+      "reject": "\\bbreach of (?:contract|peace|promise|duty)\\b",
+      "incident": true
+    },
+    {
+      "label": "online fraud",
+      "pattern": "\\b(?:fake shopping sites?|scam websites?|online scams?|online fraud|fraudulent websites?|impersonation sites?)\\b",
+      "incident": true
+    },
+    {
+      "label": "exploitation",
+      "pattern": "\\b[A-Za-z0-9]+2Shell\\b|\\bSMS of Death\\b",
+      "incident": true
+    },
+    {
+      "label": "threat research",
+      "pattern": "\\b(?:espionage campaign|threat campaigns?|APT[- ]?\\d{1,4}|C&C|command[ -]and[ -]control)\\b",
+      "context": "\\b(?:AI|cyber\\w*|software|network|malware|attack|attacks|C&C|threat|actor)\\b",
+      "incident": true
+    },
+    {
+      "label": "threat research",
+      "pattern": "\\b(?:Lazarus Group|FAMOUS CHOLLIMA|Fancy Bear|Cozy Bear|Volt Typhoon|Scattered Spider|LockBit|ALPHV|Cl0p)\\b",
+      "incident": true
+    },
+    {
+      "label": "security update",
+      "pattern": "\\bcertificate updates?\\b",
+      "context": "\\b(?:Windows|Linux|server|browser|software|security|out-of-band)\\b",
+      "incident": false
+    },
+    {
+      "label": "AI security",
+      "pattern": "\\bsecur(?:e|es|ing)[ -]+AI agents?\\b|\\bAI agents?[\\s\\S]{0,60}\\b(?:security|insider threats?)\\b",
+      "incident": false
+    }
+  ],
+  "strictTitleExclusions": [
+    "\\b(?:IPO|initial public offering|shareholder letter|stock[ -](?:price|value|market)|share[ -]price|market valuation|earnings report|quarterly earnings|value crash|fundraising round|funding round)\\b",
+    "\\b(?:economic|financial|market)[ -]+vulnerabilit(?:y|ies)\\b",
+    "\\b(?:driver|consumer|location|app|advertising|ad)[ -]+tracking\\b|\\btracking[\\s\\S]{0,55}\\b(?:without consent|settlement|privacy fine)\\b|\\bprivacy[ -]+(?:settlement|fine)\\b",
+    "\\b(?:UFO|celebrity|influencers?|battery[ -]+life|drained[ -]+battery|phone teardown|subscription[ -]+(?:price|pricing|limits?)|usage limits?|land clearance|trees chopped|data cent(?:er|re)[\\s\\S]{0,45}(?:land|clearance))\\b"
+  ],
+  "boilerplatePatterns": [
+    "^Read the original ",
+    "^This publisher supplies ",
+    "^This (?:source|publisher) is configured for headline",
+    "^This (?:is a )?publisher update\\b",
+    "^Official .{0,100} security publication[.] Consult ",
+    "^The publication is linked directly",
+    "^No (?:source|publisher|article) ",
+    "^Source publication and update dates",
+    "^Analyst guidance:"
+  ]
+}

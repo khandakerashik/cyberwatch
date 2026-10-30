@@ -148,7 +148,7 @@ test('malformed or unrelated JSON status cannot enable live mode', async () => {
 test('bounded payload reads reject oversized control and snapshot responses', async () => {
   const { client } = clientFor([
     new Response(' '.repeat(64 * 1024 + 1)),
-    new Response('{}', { headers: { 'content-length': String(8 * 1024 * 1024 + 1) } }),
+    new Response('{}', { headers: { 'content-length': String(32 * 1024 * 1024 + 1) } }),
   ]);
   const found = await client.discover();
   assert.equal(found.error.code, 'response_too_large');

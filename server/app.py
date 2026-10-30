@@ -36,8 +36,8 @@ from scripts.validate_data import validate_snapshot
 DIST = ROOT / "dist"
 INTERVAL = 1800
 COOLDOWN = 60
-COLLECT_TIMEOUT = 180
-MAX_SNAPSHOT = 8 * 1024 * 1024
+COLLECT_TIMEOUT = 300
+MAX_SNAPSHOT = 32 * 1024 * 1024
 LOG = logging.getLogger("cyberwatch")
 
 
@@ -163,7 +163,7 @@ class RefreshManager:
 
     def _run_collector(self, output):
         command = [sys.executable, str(ROOT / "scripts/fetch_feeds.py"),
-                   "--output", str(output), "--limit", "300"]
+                   "--output", str(output), "--limit", "1200"]
         with self._lock:
             if self._stop.is_set():
                 raise RuntimeError("Service is shutting down")
@@ -207,9 +207,9 @@ class RefreshManager:
                     raise RuntimeError("Service is shutting down")
                 os.replace(candidate, self.snapshot_path)
                 self._payload, self._snapshot = payload, data
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as error_detail:
             status = "failed"
-            error = "The publisher check exceeded 180 seconds. Previous data is retained."
+            error = f"The publisher check exceeded {int(error_detail.timeout)} seconds. Previous data is retained."
             LOG.warning("Collection %s timed out", job_id)
         except Exception:
             status = "failed"
