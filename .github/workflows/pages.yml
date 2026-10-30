@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   schedule:
     # Every 30 minutes, offset from the busiest minute. UTC.
-    - cron: '18,48 * * * *'
+    - cron: '17,47 * * * *'
 
 permissions:
   contents: read
@@ -36,6 +36,7 @@ jobs:
           restore-keys: cyberwatch-feeds-
       - name: Run offline regression checks
         run: |
+          python scripts/build_relevance_rules.py --check
           python -m unittest discover -s tests -p 'test_*.py'
           node --check dist/app.js
           node --check dist/refresh.js

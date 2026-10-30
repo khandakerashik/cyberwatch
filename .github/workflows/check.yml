@@ -20,6 +20,7 @@ jobs:
           python-version: '3.13'
       - name: Validate committed snapshot and application logic
         run: |
+          python scripts/build_relevance_rules.py --check
           python -m unittest discover -s tests -p 'test_*.py'
           python scripts/validate_data.py
           node --check dist/app.js
