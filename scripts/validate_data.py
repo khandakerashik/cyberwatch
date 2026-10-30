@@ -10,6 +10,11 @@ from pathlib import Path
 import re
 from urllib.parse import urlsplit
 
+try:
+    from .research_sources import DOMAINS, DATE_BASES, RELEASE_STATUSES, validate_learning
+except ImportError:
+    from research_sources import DOMAINS, DATE_BASES, RELEASE_STATUSES, validate_learning
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -79,6 +84,15 @@ def validate_article(article):
     require(isinstance(article.get("note", ""), str) and len(article.get("note", "")) <= 2000, "Invalid article note")
     if article.get("fetchedAt") is not None:
         date(article["fetchedAt"])
+    if article.get("lastAttemptAt") is not None:
+        require(isinstance(article["lastAttemptAt"], str) and "T" in article["lastAttemptAt"], "Article attempt requires a timestamp")
+        date(article["lastAttemptAt"])
+    if "availabilityReason" in article:
+        require(article["availabilityReason"] in {"full", "publisher-feed-excerpt", "permission-required", "publisher-restricted", "robots-disallowed", "extraction-failed", "reader-limit", "publisher-partial", "headline-only", "no-content", "fetch-failed"}, "Invalid article availability reason")
+    for field in ("truncated", "retained"):
+        if field in article:
+            require(isinstance(article[field], bool), f"article.{field} must be boolean")
+    require(article.get("status") != "full" or article.get("truncated") is not True, "Truncated articles cannot be marked full")
 
 
 def validate_event(event):
@@ -90,6 +104,9 @@ def validate_event(event):
     require(event.get("category") in {"Incident", "Vulnerability", "Advisory", "Patch", "News"}, "Invalid category")
     require(event.get("stream", "news" if event.get("category") == "News" else "intelligence") in {"intelligence", "news"}, "Invalid event stream")
     require(event.get("sourceType") in {None, "mainstream", "security", "vendor", "government"}, "Invalid event source type")
+    if "learning" in event:
+        validate_learning(event["learning"])
+        require(event.get("category") == "News" and event.get("stream") == "news", "Research records must use the publication stream")
     if "newsRelevance" in event:
         decision = event["newsRelevance"]
         require(isinstance(decision, dict), "newsRelevance must be an object")
@@ -159,7 +176,10 @@ def validate_snapshot(data):
         source_ids.add(source["id"])
         require(source.get("status") in {"ok", "error", "snapshot"}, "Invalid source status")
         require(source.get("kind") in {"primary", "secondary", "curated"}, "Invalid source kind")
-        require(source.get("group", "intelligence") in {"intelligence", "news", "bangladesh", "newsboard"}, "Invalid source group")
+        require(source.get("group", "intelligence") in {"intelligence", "news", "bangladesh", "newsboard", "research"}, "Invalid source group")
+        if "learning" in source:
+            validate_learning(source["learning"])
+            require(source.get("group") == "research", "Learning source metadata requires research group")
         require(source.get("sourceType") in {None, "mainstream", "security", "vendor", "government"}, "Invalid source type")
         require(isinstance(source.get("itemCount"), int) and source["itemCount"] >= 0, "Invalid source item count")
         if source.get("url") is not None:
@@ -167,6 +187,21 @@ def validate_snapshot(data):
         for field in ("lastSuccessAt", "lastAttemptAt"):
             if source.get(field) is not None:
                 date(source[field])
+        if "collectionHistory" in source:
+            checks = source["collectionHistory"]
+            require(isinstance(checks, list) and len(checks) <= 48, "Collection history must contain at most 48 checks")
+            require(source.get("kind") != "curated" or not checks, "Curated records cannot claim automated checks")
+            last_check = None
+            for check in checks:
+                require(isinstance(check, dict) and check.get("status") in {"ok", "error"}, "Invalid collection history outcome")
+                require(isinstance(check.get("at"), str) and "T" in check["at"], "History check requires a timestamp")
+                at = date(check["at"])
+                require(last_check is None or at > last_check, "History checks must be unique and ordered")
+                require(at <= date(data["generatedAt"]), "Collection history cannot be in the future")
+                if source.get("lastAttemptAt"):
+                    require(at <= date(source["lastAttemptAt"]), "History cannot follow the last attempt")
+                require(isinstance(check.get("recordCount"), int) and not isinstance(check["recordCount"], bool) and 0 <= check["recordCount"] <= 2000, "Invalid history record count")
+                last_check = at
     ids = set()
     for event in data["events"]:
         validate_event(event)
@@ -175,6 +210,36 @@ def validate_snapshot(data):
         ids.add(event["id"])
     for source in data["sources"]:
         require(source["itemCount"] == sum(e["sourceId"] == source["id"] for e in data["events"]), "Source count does not match displayed records")
+    if "researchWatch" in data:
+        require(isinstance(data["researchWatch"], list) and len(data["researchWatch"]) <= 40, "Invalid research watch list")
+        watch_ids = set()
+        for watch in data["researchWatch"]:
+            require(isinstance(watch, dict), "Research watch must be an object")
+            identifier = watch.get("id")
+            require(isinstance(identifier, str) and re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", identifier) and identifier not in watch_ids, "Invalid or duplicate research watch id")
+            watch_ids.add(identifier)
+            require(watch.get("sourceId") in source_ids, "Research watch needs a registered source")
+            for field in ("name", "currentLabel"):
+                require(isinstance(watch.get(field), str) and 0 < len(watch[field]) <= 500, "Invalid research watch label")
+            for field in ("url", "referenceUrl"):
+                link(watch.get(field))
+                require(watch[field].startswith("https://"), "Research watches require HTTPS references")
+            domains = watch.get("domains")
+            require(isinstance(domains, list) and 1 <= len(domains) <= 8 and all(isinstance(value, str) and value in DOMAINS for value in domains), "Invalid research watch domains")
+            require(watch.get("status") in {"ok", "error"}, "Invalid research watch status")
+            require(watch.get("watchType") in {"edition", "release"}, "Invalid research watch kind")
+            require(watch.get("releaseStatus") in RELEASE_STATUSES and watch.get("dateBasis") in DATE_BASES, "Invalid research watch publication metadata")
+            require(isinstance(watch.get("changeDetected"), bool), "Research watch changes must be boolean")
+            require(watch.get("error") is None or isinstance(watch["error"], str) and 0 < len(watch["error"]) <= 1000, "Invalid research watch error")
+            require(watch.get("contentHash") is None or isinstance(watch["contentHash"], str) and re.fullmatch(r"[a-f0-9]{64}", watch["contentHash"]), "Invalid research watch hash")
+            date(watch.get("lastCheckedAt"))
+            for field in ("publishedAt", "lastSuccessAt", "firstObservedAt", "changedAt"):
+                if watch.get(field) is not None:
+                    date(watch[field])
+            if watch.get("watchType") == "edition":
+                require(watch.get("publishedAt") is None and watch.get("dateBasis") == "observation", "Edition checks cannot invent publication dates")
+            if watch.get("status") == "ok":
+                require(watch.get("contentHash") and watch.get("firstObservedAt") and watch.get("lastSuccessAt") and watch.get("error") is None, "Successful research watch needs observation evidence")
 
 
 def main():

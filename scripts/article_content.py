@@ -26,7 +26,7 @@ import threading
 import time
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
-USER_AGENT = "CyberWatch/1.5 (+public security news reader)"
+USER_AGENT = "CyberWatch/3.1 (+public security news reader)"
 REQUEST_TIMEOUT = 6
 MAX_ARTICLE_BYTES = 2 * 1024 * 1024
 MAX_ROBOTS_BYTES = 256 * 1024
@@ -40,7 +40,7 @@ CACHE_HOURS = 168
 BLOCKED_SUFFIXES = (".localhost", ".local", ".internal", ".lan", ".home", ".test", ".invalid", ".example")
 HIDDEN_TAGS = {"script", "style", "template", "noscript", "nav", "footer", "header", "aside", "form", "button", "svg", "iframe"}
 BLOCK_TAGS = {"p", "li", "pre", "blockquote", "h1", "h2", "h3", "h4", "figcaption", "td"}
-TEASER = re.compile(r"(?:continue reading|read (?:the )?(?:full|complete) (?:article|story)|read more)(?:[ .…»›>!]|at the (?:source|publisher))*$", re.I)
+TEASER = re.compile(r"(?:continue reading|read (?:the )?(?:full|complete) (?:article|story)|read more)(?:[ .…»›>!]|at the (?:source|publisher)|https?://\S+)*$|(?:…|\.{3})$", re.I)
 ACCESS_CHALLENGE = re.compile(r"verify (?:that )?you are human|enable javascript and cookies to continue|performing security verification|checking your browser before (?:accessing|continuing)", re.I)
 PAYWALL = re.compile(r"subscribe to (?:continue|keep) reading|subscribe to read (?:the |this )?(?:full|complete) article|this (?:article|story|content) is (?:only )?(?:available|exclusive) (?:to|for) subscribers|subscription (?:is )?required to read|sign in to (?:continue|keep) reading", re.I)
 
@@ -114,7 +114,8 @@ def source_policy(source):
     images = policy.get("allowedImageHosts")
     if images is not None:
         images = [str(item).lower() for item in images if isinstance(item, str) and _public_hostname(item)]
-    return {"allowFullText": policy.get("allowFullText") is True or source.get("publisherPermission") is True,
+    full_text = policy.get("allowFullText") is True or source.get("publisherPermission") is True
+    return {"allowFullText": full_text, "allowPageFetch": full_text and policy.get("allowPageFetch", True) is True,
             "allowedHosts": hosts, "allowedImageHosts": images,
             "license": _text(policy.get("license"), 500), "attribution": _text(policy.get("attribution"), 250)}
 
@@ -149,7 +150,9 @@ class ContentParser(HTMLParser):
         return value[:MAX_TEXT_CHARS + 1]
 
     def _scope(self):
-        return "article" if any(frame[0] == "article" for frame in self.stack) else "main" if any(frame[0] == "main" for frame in self.stack) else "other"
+        if any(frame[2] == "body" for frame in self.stack):
+            return "body"
+        return "article" if any(frame[0] == "article" for frame in self.stack) else "main" if any(frame[0] == "main" or frame[2] == "main" for frame in self.stack) else "other"
 
     def _hidden(self):
         return any(frame[1] for frame in self.stack)
@@ -189,7 +192,13 @@ class ContentParser(HTMLParser):
         if tag == "br" and self.active:
             self.active[-1][2].append(" ")
         if tag not in {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}:
-            self.stack.append((tag, hidden))
+            # Many publishers use a semantic articleBody or a dedicated body
+            # container rather than an <article> element. Prefer that narrow
+            # scope over an entire page/main element and its unrelated cards.
+            body_scope = "articlebody" in attrs.get("itemprop", "").lower().split() or bool(
+                re.search(r"(?:^|\s)(?:article-body|entry-content|post-content|post-body)(?:$|\s)", classes))
+            scope_type = "body" if body_scope else "main" if attrs.get("role", "").lower() == "main" else ""
+            self.stack.append((tag, hidden, scope_type))
             if tag in BLOCK_TAGS and not self._hidden():
                 self.active.append([tag, self._scope(), []])
 
@@ -240,9 +249,10 @@ class ContentParser(HTMLParser):
                 self.restricted = True
         visible_text = " ".join(self.all_text)[:MAX_ARTICLE_BYTES]
         self.restricted = self.restricted or bool(PAYWALL.search(visible_text)) or bool(ACCESS_CHALLENGE.search(visible_text))
+        body = [value for scope, value in self.blocks if scope == "body"]
         article = [value for scope, value in self.blocks if scope == "article"]
         main = [value for scope, value in self.blocks if scope == "main"]
-        paragraphs = article if sum(map(len, article)) >= 100 else main if sum(map(len, main)) >= 100 else []
+        paragraphs = body if sum(map(len, body)) >= 100 else article if sum(map(len, article)) >= 100 else main if sum(map(len, main)) >= 100 else []
         if not paragraphs:
             for schema in schemas:
                 body = schema.get("articleBody")
@@ -257,8 +267,9 @@ class ContentParser(HTMLParser):
         if not paragraphs and not require_article:
             paragraphs = [value for _, value in self.blocks]
             if not paragraphs:
-                value = self._block_text([" ".join(self.all_text)])
-                paragraphs = [value] if value else []
+                # Plain-text feed descriptions often use blank lines instead
+                # of HTML. Keep those paragraph boundaries in the reader.
+                paragraphs = [self._block_text([value]) for value in re.split(r"\n\s*\n", "".join(self.all_text)) if value.strip()]
         cleaned, seen, total = [], set(), 0
         for paragraph_index, value in enumerate(paragraphs):
             if not value or value in seen:
@@ -282,7 +293,7 @@ class ContentParser(HTMLParser):
             if len(cleaned) >= MAX_PARAGRAPHS:
                 self.truncated = self.truncated or paragraph_index + 1 < len(paragraphs)
                 break
-        scoped_images = [image for image in self.images if image["_scope"] in {"article", "main"}]
+        scoped_images = [image for image in self.images if image["_scope"] in {"body", "article", "main"}]
         images = scoped_images or ([] if require_article else self.images)
         images = [{key: value for key, value in image.items() if not key.startswith("_")} for image in images[:MAX_IMAGES]]
         for candidate in self.meta_images:
@@ -306,10 +317,40 @@ def _article_schemas(value, depth=0):
     return found + [item for name in ("@graph", "mainEntity", "hasPart") if name in value for item in _article_schemas(value[name], depth + 1)]
 
 
+def _ellipsis(paragraphs):
+    result = list(paragraphs)
+    if result and not re.search(r"(?:…|\.{3})$", result[-1]):
+        available = min(MAX_PARAGRAPH_CHARS - 1, MAX_TEXT_CHARS - sum(map(len, result[:-1])) - 1)
+        result[-1] = result[-1][:max(0, available)].rstrip() + "…"
+    return result
+
+
 def _excerpt(paragraphs, words=120):
-    value = " ".join(paragraphs)
-    items = value.split()
-    return [" ".join(items[:words]) + ("…" if len(items) > words else "")] if items else []
+    """Preserve source paragraphs while applying an explicit excerpt budget."""
+    result, remaining = [], words
+    for index, paragraph in enumerate(paragraphs):
+        items = paragraph.split()
+        if not items:
+            continue
+        result.append(" ".join(items[:remaining]))
+        remaining -= min(len(items), remaining)
+        if remaining <= 0:
+            if len(items) > len(result[-1].split()) or any(value.strip() for value in paragraphs[index + 1:]):
+                result = _ellipsis(result)
+            break
+    return result
+
+
+def _cut_off_summary(paragraphs):
+    """A feed summary with a sentence-length unfinished tail is a teaser.
+
+    Apply only to summary/excerpt text: a complete changelog can legitimately
+    end in a version identifier, URL or punctuation-free bullet.
+    """
+    if not paragraphs:
+        return False
+    tail = paragraphs[-1].strip()
+    return len(tail) >= 80 and bool(re.search(r"[\w,;–—-]$", tail))
 
 
 def ingest_feed_content(source, *, summary="", content="", image_candidates=(), article_url="", timestamp=None):
@@ -322,7 +363,15 @@ def ingest_feed_content(source, *, summary="", content="", image_candidates=(), 
     result = parser.finish()
     result["truncated"] = result["truncated"] or len(raw) > MAX_ARTICLE_BYTES
     full = bool(content and policy["allowFullText"] and not result["restricted"] and not result["truncated"] and not result["teaser"])
-    paragraphs = result["paragraphs"] if full else _excerpt(result["paragraphs"])
+    # A permitted body may be partial or exceed the reader limit, but its
+    # available text must not be reduced again to the 120-word news excerpt.
+    keep_available = policy["allowFullText"] and not result["restricted"]
+    paragraphs = result["paragraphs"] if keep_available else _excerpt(result["paragraphs"])
+    locally_clipped = sum(len(value.split()) for value in paragraphs) < sum(len(value.split()) for value in result["paragraphs"])
+    unfinished_summary = (not content or not policy["allowFullText"]) and _cut_off_summary(paragraphs)
+    truncated = result["truncated"] or result["teaser"] or locally_clipped or unfinished_summary
+    if truncated and paragraphs:
+        paragraphs = _ellipsis(paragraphs)
     images = result["images"]
     for candidate in list(image_candidates or ())[:30]:
         candidate = {"url": candidate} if isinstance(candidate, str) else candidate
@@ -334,14 +383,26 @@ def ingest_feed_content(source, *, summary="", content="", image_candidates=(), 
         images.append({"url": url, "alt": _text(candidate.get("alt"), 500),
                        "caption": _text(candidate.get("caption"), 1000), "credit": _text(candidate.get("credit"), 300)})
     status = "restricted" if result["restricted"] else "full" if full and paragraphs else "excerpt" if paragraphs else "unavailable"
-    note = ("Full text supplied in the publisher feed; redistribution is enabled for this source." if status == "full" else
-            "Publisher-supplied excerpt. Open the original article for the full report." if status == "excerpt" else
-            "The publisher limits access to the complete article. Open the original source." if status == "restricted" else
-            "This source is configured for headline-only coverage. Open the original source to read it." if headline_only else
-            "The feed does not supply readable article text. Open the original source.")
-    if status == "full":
+    reason = ("publisher-restricted" if result["restricted"] else "full" if status == "full" else
+              "headline-only" if headline_only else "no-content" if not paragraphs else
+              "reader-limit" if result["truncated"] else "permission-required" if content and not policy["allowFullText"] else
+              "publisher-partial" if content and result["teaser"] else "publisher-feed-excerpt")
+    note = {
+        "full": "Full text supplied in the publisher feed; redistribution is enabled for this source.",
+        "publisher-feed-excerpt": "The publisher feed supplies an excerpt, not the complete article. Open the original publication to continue.",
+        "permission-required": "The feed provides article content, but full-text redistribution is not enabled for this source. An attributed excerpt is shown.",
+        "publisher-restricted": "The publisher limits access to the complete article. Open the original source.",
+        "publisher-partial": "The publisher feed supplies partial text or a read-more teaser. Available permitted text is shown; open the original to continue.",
+        "reader-limit": "The supplied text exceeds this reader's bounded content limit. Available permitted text is shown; open the original to continue.",
+        "headline-only": "This source is configured for headline-only coverage. Open the original source to read it.",
+        "no-content": "The feed does not supply readable article text. Open the original source.",
+    }[reason]
+    if reason == "publisher-feed-excerpt" and not policy["allowPageFetch"]:
+        note += " Full-page collection is not enabled for this source."
+    if policy["allowFullText"] and paragraphs and not result["restricted"]:
         note = _licensed_note(note, source, policy)
-    return {"status": status, "paragraphs": paragraphs, "images": images, "origin": "feed", "fetchedAt": timestamp, "note": note}
+    return {"status": status, "paragraphs": paragraphs, "images": images, "origin": "feed", "fetchedAt": timestamp,
+            "lastAttemptAt": timestamp, "availabilityReason": reason, "truncated": bool(truncated), "retained": False, "note": note}
 
 
 class _PinnedHTTPSConnection(http.client.HTTPSConnection):
@@ -535,16 +596,22 @@ def robots_allows(payload, url):
     return allowed, max((delay for _, delay in selected), default=0.0)
 
 
-def _cached_article(event, previous, timestamp):
+def _previous_article(event, previous):
     old = previous.get(event.get("id"))
     if not old or old.get("updatedAt") != event.get("updatedAt") or old.get("sources", [{}])[0].get("url") != event.get("sources", [{}])[0].get("url"):
         return None
     article = old.get("article")
+    return article if isinstance(article, dict) else None
+
+
+def _cached_article(event, previous, timestamp):
+    article = _previous_article(event, previous)
     if not isinstance(article, dict) or article.get("origin") != "publisher" or not article.get("fetchedAt"):
         return None
     try:
-        elapsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00")) - datetime.fromisoformat(article["fetchedAt"].replace("Z", "+00:00"))
-        ttl = CACHE_HOURS if article.get("status") == "full" else RETRY_HOURS
+        checked = article.get("lastAttemptAt") or article["fetchedAt"]
+        elapsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00")) - datetime.fromisoformat(checked.replace("Z", "+00:00"))
+        ttl = CACHE_HOURS if article.get("status") == "full" and not article.get("retained") else RETRY_HOURS
         if 0 <= elapsed.total_seconds() < ttl * 3600:
             return deepcopy(article)
     except (ValueError, TypeError):
@@ -576,15 +643,38 @@ def enrich_events(events, sources_by_id, previous=None, timestamp=None, *, max_a
         # Events without feed content still receive a transparent reader state.
         if "article" not in event:
             event["article"] = ingest_feed_content(source, summary=event.get("summary", ""), article_url=event.get("sources", [{}])[0].get("url", ""), timestamp=timestamp)
-        if not policy["allowFullText"] or not policy["allowedHosts"]:
+        if not policy["allowFullText"]:
+            # Policy changes also apply to records retained during a feed
+            # outage; an older full-text cache never grants ongoing permission.
+            if event["article"].get("status") == "full":
+                event["article"] = ingest_feed_content(source, content="\n\n".join(event["article"].get("paragraphs", [])),
+                    image_candidates=event["article"].get("images", []), timestamp=timestamp)
+            continue
+        # Prefer a new complete feed body over a cached earlier failed page
+        # attempt. A publisher may improve its feed without changing the date.
+        if event["article"].get("status") == "full" and not event["article"].get("retained"):
+            continue
+        previous_article = _previous_article(event, prior)
+        fallback = deepcopy(previous_article) if previous_article and previous_article.get("status") == "full" else None
+        if not policy["allowPageFetch"] or not policy["allowedHosts"]:
+            if fallback:
+                fallback.update(retained=True, lastAttemptAt=timestamp, availabilityReason="publisher-feed-excerpt",
+                    note=_licensed_note("Previously collected complete text is retained because the current feed contains only a shorter excerpt. Open the source for its current publication.", source, policy))
+                event["article"] = fallback
             continue
         cached = _cached_article(event, prior, timestamp)
         if cached:
             event["article"] = cached
             continue
-        if event["article"].get("status") == "full":
-            continue
-        candidates.setdefault(event.get("sourceId"), []).append((event, source, policy))
+        feed_article = deepcopy(event["article"])
+        if fallback:
+            # The per-run budget may defer this article. Keep the last complete
+            # same-version text available, without inventing a new fetch time.
+            retained = deepcopy(fallback)
+            retained.update(retained=True, availabilityReason="full",
+                note=_licensed_note("Previously collected complete text is retained while a publisher recheck is pending. Open the source for the current publication.", source, policy))
+            event["article"] = retained
+        candidates.setdefault(event.get("sourceId"), []).append((event, source, policy, fallback, feed_article))
     # Give each eligible publisher a turn so a large first feed cannot consume
     # the entire article budget before another vendor gets a readable update.
     buckets = [deque(sorted(items, key=lambda item: item[0].get("publishedAt", item[0].get("updatedAt", "")), reverse=True)) for items in candidates.values()]
@@ -596,10 +686,19 @@ def enrich_events(events, sources_by_id, previous=None, timestamp=None, *, max_a
     robots_cache, robots_lock, host_locks, host_last = {}, threading.Lock(), {}, {}
 
     def work(item):
-        event, source, policy = item
-        current = deepcopy(event["article"])
-        current.update(origin="publisher", fetchedAt=timestamp)
+        event, source, policy, fallback, feed_article = item
+        current = deepcopy(feed_article)
+        current.update(origin="publisher", fetchedAt=timestamp, lastAttemptAt=timestamp, retained=False)
         url = event.get("sources", [{}])[0].get("url", "")
+
+        def retain_full(reason, note):
+            if fallback:
+                retained = deepcopy(fallback)
+                retained.update(lastAttemptAt=timestamp, retained=True, availabilityReason=reason,
+                    note=_licensed_note("Previously collected complete text is retained. " + note + " Last successful text collection: " + str(fallback.get("fetchedAt") or "not recorded") + ". Open the original for the current version.", source, policy))
+                return retained
+            return current
+
         try:
             if clock() >= deadline:
                 return
@@ -625,7 +724,7 @@ def enrich_events(events, sources_by_id, previous=None, timestamp=None, *, max_a
                     raise ValueError("Publisher robots policy could not be verified")
                 allowed, crawl_delay = robots_allows(robots_cache[origin], url)
                 if not allowed:
-                    current.update(status="restricted", note="The publisher robots policy does not allow article collection. Feed content and the original link remain available.")
+                    current.update(status="restricted", availabilityReason="robots-disallowed", note="The publisher robots policy does not allow article collection. Feed content and the original link remain available.")
                     event["article"] = current
                     return
                 if crawl_delay > 10:
@@ -648,20 +747,26 @@ def enrich_events(events, sources_by_id, previous=None, timestamp=None, *, max_a
             parser.feed(markup)
             content = parser.finish(require_article="text/plain" not in kind)
             if content["restricted"]:
-                current.update(status="restricted", note="The publisher page indicates restricted access. Feed content and the original link remain available.")
+                current.update(status="restricted", availabilityReason="publisher-restricted", note="The publisher page indicates restricted access. Feed content and the original link remain available.")
             elif sum(map(len, content["paragraphs"])) < 150:
+                current["availabilityReason"] = "extraction-failed"
                 current["note"] = "A complete article could not be extracted from the publisher page. Available feed content is shown."
+                current = retain_full("extraction-failed", "The latest page check could not extract a complete article.")
             else:
                 limited = content["truncated"] or content["teaser"]
-                current.update(status="excerpt" if limited else "full", paragraphs=content["paragraphs"], images=content["images"] or current["images"],
+                current.update(status="excerpt" if limited else "full", paragraphs=_ellipsis(content["paragraphs"]) if limited else content["paragraphs"], images=content["images"] or current["images"],
+                               truncated=bool(limited), availabilityReason="reader-limit" if content["truncated"] else "publisher-partial" if content["teaser"] else "full",
                                note=("The publisher supplies a partial article or its text exceeds the reader limit. Available text is shown; open the original to continue." if limited else
                                      _licensed_note("Article text collected from a permitted public publisher page. Formatting is simplified; consult the original for authoritative details.", source, policy)))
                 if limited:
                     current["note"] = _licensed_note(current["note"], source, policy)
+                    current = retain_full(current["availabilityReason"], "The latest page supplies only partial text.")
         except Exception as error:
             # Do not leak raw URLs, response bodies or infrastructure details.
             reason = "Reader fetch unavailable" if not isinstance(error, ValueError) else str(error)[:180]
+            current["availabilityReason"] = "fetch-failed"
             current["note"] = reason + ". Available feed content and the original source link remain available."
+            current = retain_full("fetch-failed", "The latest publisher fetch was unavailable.")
         event["article"] = current
 
     if pending:

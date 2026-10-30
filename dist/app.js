@@ -1,5 +1,9 @@
-import { escapeHTML as h, safeURL, safeImageURL, normalizeData, filterEvents, isNewsEvent, isNewsboardEvent, eventSourceType, isBangladeshEvent, makeCSV, makeBrief, cveURL, relatedEvents } from './core.js';
+import { escapeHTML as h, safeURL, safeImageURL, normalizeData, filterEvents, isNewsEvent, isNewsboardEvent, isResearchEvent, eventSourceType, isBangladeshEvent, makeCSV, makeBrief, cveURL, relatedEvents } from './core.js';
 import { createFeedClient } from './refresh.js';
+import { createResearchLab } from './research-ui.js';
+import { RESEARCH_DOMAINS, RESEARCH_KINDS, RELEASE_LABELS } from './research-core.js';
+import { createSourceQuality, createIncidentHistory } from './insights-ui.js';
+import { historyItems, makeHistoryCSV } from './insights-core.js';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -31,6 +35,7 @@ const ICONS = {
   newspaper:'<path d="M4 4h16v16H4zM8 8h8M8 12h3m3 0h2M8 16h3m3 0h2"/>',
   globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a17 17 0 0 1 0 18 17 17 0 0 1 0-18Z"/>',
   database:'<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/>',
+  book:'<path d="M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1Zm0 0v15"/><path d="M6 8h3m-3 4h3m6-4h3m-3 4h3"/>',
 };
 const icon = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ICONS.file}</svg>`;
 function hydrateIcons(root = document) { root.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = icon(el.dataset.icon); }); }
@@ -46,6 +51,9 @@ try {
   const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
   if (Array.isArray(stored)) state.saved = new Set(stored.filter(id => typeof id === 'string' && id.length <= 180).slice(0,500));
 } catch { storageAvailable = false; }
+const researchLab=createResearchLab({getData:()=>state.data,getSaved:()=>state.saved,onSave:toggleResearchBookmark,onOpen:id=>openEvent(id),onToast:message=>toast(message),onChange:()=>{if(state.data)renderStats();},onResults:count=>{if(state.view==='research')$('#export-button').disabled=!count;}});
+const sourceQuality=createSourceQuality({getData:()=>state.data,onResults:count=>{if(state.view==='quality')$('#export-button').disabled=!count;}});
+const incidentHistory=createIncidentHistory({getData:()=>state.data,onResults:count=>{if(state.view==='history')$('#export-button').disabled=!count;}});
 let toastTimer;
 function toast(message) {
   const el = $('#toast');
@@ -60,17 +68,18 @@ const fullDate = value => value ? new Intl.DateTimeFormat('en-GB',{day:'2-digit'
 const fullTimestamp = value => value ? new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23',timeZone:DISPLAY_ZONE}).format(new Date(value))+' BDT' : 'Not recorded';
 const severityText = severity => severity === 'unknown' ? 'UNRATED' : severity.toUpperCase();
 const severityBadge = severity => `<span class="badge severity-${h(severity)}">${h(severityText(severity))}</span>`;
-const eventBadge = event => isNewsEvent(event) ? '<span class="badge news-badge">UPDATE</span>' : severityBadge(event.severity);
+const eventBadge = event => isResearchEvent(event) ? '<span class="badge research-badge">RESEARCH</span>' : isNewsEvent(event) ? '<span class="badge news-badge">UPDATE</span>' : severityBadge(event.severity);
 const scopeLabels = {'national-advisory':'National advisory','local-activity':'Local activity',coverage:'News coverage'};
 const newsScopeLabels = {all:'All coverage',mainstream:'World press',security:'Cybersecurity',advisories:'Advisories'};
 const newsTopicLabels = {all:'All topics',hack:'Hacking',cyberattack:'Cyberattacks',breach:'Data breaches',ransomware:'Ransomware',malware:'Malware',phishing:'Phishing','zero-day':'Zero-days',ddos:'DDoS',vulnerability:'Vulnerabilities'};
 const sourceTypeLabels = {mainstream:'World press',security:'Cybersecurity',vendor:'Vendor publication',government:'Government advisory'};
-const readerLabels = {full:'Full text',excerpt:'Excerpt',restricted:'Publisher access',unavailable:'Source link'};
+const readerLabels = {full:'Full source text',excerpt:'Partial article',restricted:'Publisher access',unavailable:'Source link'};
 const initials = organization => organization.replace(/[^a-z0-9]/gi,'').slice(0,2).toUpperCase() || 'SI';
 const countFormat = count => String(count).padStart(2,'0');
 const sourceState = source => source.status === 'ok' ? 'COLLECTED' : source.status === 'error' ? 'FETCH ERROR' : 'REVIEWED';
 function sourceDescription(source) {
   if (source.description) return source.description;
+  if (source.group === 'research') return 'Official project publications, standards watches and original security research. Source dates and draft status are preserved.';
   if (source.group === 'newsboard') return 'Worldwide news reporting selected for cybersecurity topics. Articles retain their publisher, original publication date and source link.';
   if (source.group === 'news') return 'Public publisher updates and short feed excerpts. Open the original article for the complete report; an article is not an independently verified incident.';
   if (source.group === 'bangladesh') return 'Bangladesh advisories and documented cyber activity. The record identifies whether it is a national advisory, a local activity report, or news coverage.';
@@ -80,6 +89,8 @@ function sourceDescription(source) {
   return 'Official security advisories collected from the publisher’s feed. Source summaries and analyst triage guidance are identified within each event.';
 }
 function visibleEvents() {
+  if(state.view==='research')return researchLab.filteredEvents();
+  if(state.view==='history')return incidentHistory.events();
   let events = filterEvents(state.data?.events || [], {...state,savedIds:state.saved});
   if (state.tab === 'priority') events = events.filter(event => ['critical','high'].includes(event.severity));
   if (state.tab === 'exploited') events = events.filter(event => event.exploited);
@@ -94,7 +105,8 @@ function scopedEvents() {
 function scopedSources(events=scopedEvents()) {
   const ids=new Set(events.map(event=>event.sourceId));
   if(state.view==='sources')return state.data.sources;
-  return state.data.sources.filter(source=>ids.has(source.id) || (state.view==='newsboard'&&source.kind!=='curated') || (state.view==='newsletters'&&source.group==='news') || (state.view==='bangladesh'&&source.group==='bangladesh') || (state.view==='feed'&&source.group==='intelligence'));
+  if(state.view==='research')return state.data.sources.filter(source=>source.group==='research');
+  return state.data.sources.filter(source=>ids.has(source.id) || (state.view==='newsboard'&&source.kind!=='curated'&&source.group!=='research') || (state.view==='newsletters'&&source.group==='news') || (state.view==='bangladesh'&&source.group==='bangladesh') || (state.view==='feed'&&source.group==='intelligence'));
 }
 function renderFreshness() {
   const writeTime=(id,value,empty='Not recorded')=>{const el=$(id);el.textContent=value?fullTimestamp(value):empty;if(value){el.dateTime=value;el.title=value;}else{el.removeAttribute('datetime');el.removeAttribute('title');}};
@@ -133,14 +145,23 @@ function renderStats() {
   $('#nav-feed-count').textContent=filterEvents(all,{view:'feed'}).length;
   $('#nav-news-count').textContent=filterEvents(all,{view:'newsletters'}).length;
   $('#nav-newsboard-count').textContent=filterEvents(all,{view:'newsboard'}).length;
+  $('#nav-research-count').textContent=filterEvents(all,{view:'research'}).length;
   $('#nav-bd-count').textContent=filterEvents(all,{view:'bangladesh'}).length;
   $('#nav-source-count').textContent=state.data.sources.length;
+  $('#nav-quality-count').textContent=state.data.sources.filter(source=>source.status==='error').length;
+  $('#nav-history-count').textContent=new Set(historyItems(state.data).map(item=>item.event.id)).size;
   $('#nav-saved-count').textContent=all.filter(event=>state.saved.has(event.id)).length;
   const collections={Incident:'incidents',Vulnerability:'vulns',Patch:'patches',Advisory:'advisories'};
   for (const [category,id] of Object.entries(collections)) $(`#collection-${id}`).textContent=all.filter(event=>event.category===category&&!isNewsEvent(event)).length;
   $('#tab-all-count').textContent=events.length;
   $('#tab-priority-count').textContent=events.filter(event=>['critical','high'].includes(event.severity)).length;
   $('#tab-exploited-count').textContent=events.filter(event=>event.exploited).length;
+  if(state.view==='research'){
+    $('#stat-total-label').textContent='RESEARCH PUBLICATIONS';$('#stat-total').textContent=countFormat(events.length);$('#stat-total-note').textContent='Original research, releases & testing guidance';
+    $('#stat-priority-label').textContent='PROJECT WATCHES';$('#stat-priority').textContent=countFormat(state.data.researchWatch.length);$('#stat-priority').classList.remove('danger');$('#stat-priority-note').textContent='Official editions and repository publications';
+    $('#stat-exploited-label').textContent='REVIEWED BY YOU';$('#stat-exploited').textContent=countFormat(researchLab.reviewedCount());$('#stat-exploited').classList.remove('amber');$('#stat-exploited-note').textContent=`${researchLab.progressCount()} study steps completed · this browser`;
+    $('#stat-sources-label').textContent='RESEARCH CHANNELS';
+  }
 }
 
 function renderInsights() {
@@ -228,26 +249,39 @@ function renderEventList() {
 }
 
 function renderSources() {
-  $('#source-cards').innerHTML=state.data.sources.map(source=>`<article class="source-card"><div class="source-card-top"><span class="source-card-icon">${icon(['news','newsboard'].includes(source.group)?'newspaper':source.group==='bangladesh'?'globe':source.kind==='curated'?'shield':'radio')}</span><span class="source-state ${source.status==='error'?'error':''}">${sourceState(source)}</span></div><span class="source-group">${source.group==='newsboard'?'WORLD PRESS':source.group==='news'?'NEWS & RESEARCH':source.group==='bangladesh'?'BANGLADESH':'GLOBAL INTELLIGENCE'} · ${source.kind==='secondary'?'SECONDARY REPORTING':source.kind==='curated'?'REVIEWED RECORDS':'PRIMARY PUBLISHER'}</span><h3>${h(source.name)}</h3><p>${h(sourceDescription(source))}</p>${source.error?`<p class="source-card-error">${h(source.error)}. Last available records are shown where retained.</p>`:''}<div class="source-facts"><div><small>RECORDS</small>${countFormat(source.itemCount)}</div><div><small>${source.kind==='curated'?'METHOD':'LAST SUCCESSFUL FETCH'}</small>${h(source.kind==='curated'?'Editorial review':source.lastSuccessAt?fullTimestamp(source.lastSuccessAt):'Not yet collected')}</div><div><small>LAST CHECK ATTEMPT</small>${h(source.kind==='curated'?'Manually reviewed':source.lastAttemptAt?fullTimestamp(source.lastAttemptAt):'Not recorded')}</div></div><div class="source-card-actions"><button data-source-filter="${h(source.id)}">Browse updates ${icon('arrow')}</button>${source.url?`<a href="${h(safeURL(source.url))}" target="_blank" rel="noopener noreferrer">Open source ${icon('external')}</a>`:'<span>Direct links in event details</span>'}</div></article>`).join('');
+  $('#source-cards').innerHTML=state.data.sources.map(source=>`<article class="source-card"><div class="source-card-top"><span class="source-card-icon">${icon(source.group==='research'?'book':['news','newsboard'].includes(source.group)?'newspaper':source.group==='bangladesh'?'globe':source.kind==='curated'?'shield':'radio')}</span><span class="source-state ${source.status==='error'?'error':''}">${sourceState(source)}</span></div><span class="source-group">${source.group==='research'?'RESEARCH & LEARNING':source.group==='newsboard'?'WORLD PRESS':source.group==='news'?'NEWS & RESEARCH':source.group==='bangladesh'?'BANGLADESH':'GLOBAL INTELLIGENCE'} · ${source.kind==='secondary'?'SECONDARY REPORTING':source.kind==='curated'?'REVIEWED RECORDS':'PRIMARY PUBLISHER'}</span><h3>${h(source.name)}</h3><p>${h(sourceDescription(source))}</p>${source.error?`<p class="source-card-error">${h(source.error)}. Last available records are shown where retained.</p>`:''}<div class="source-facts"><div><small>RECORDS</small>${countFormat(source.itemCount)}</div><div><small>${source.kind==='curated'?'METHOD':'LAST SUCCESSFUL FETCH'}</small>${h(source.kind==='curated'?'Editorial review':source.lastSuccessAt?fullTimestamp(source.lastSuccessAt):'Not yet collected')}</div><div><small>LAST CHECK ATTEMPT</small>${h(source.kind==='curated'?'Manually reviewed':source.lastAttemptAt?fullTimestamp(source.lastAttemptAt):'Not recorded')}</div></div><div class="source-card-actions"><button data-source-filter="${h(source.id)}">Browse updates ${icon('arrow')}</button>${source.url?`<a href="${h(safeURL(source.url))}" target="_blank" rel="noopener noreferrer">Open source ${icon('external')}</a>`:'<span>Direct links in event details</span>'}</div></article>`).join('');
 }
 
 function render() {
   if(!state.data) return;
   renderFreshness();renderStats();renderPublisherChannels();renderEventList();renderInsights();renderSources();
+  if(state.view==='research')researchLab.render();
+  if(state.view==='quality')sourceQuality.render();
+  if(state.view==='history')incidentHistory.render();
 }
 
 function setView(view,{reset=false,updateHash=true}={}) {
-  state.view=['feed','newsboard','newsletters','bangladesh','watchlist','sources'].includes(view)?view:'feed';
-  if(reset)resetFilters(false);
+  state.view=['feed','newsboard','research','newsletters','bangladesh','watchlist','sources','quality','history'].includes(view)?view:'feed';
+  if(reset){resetFilters(false);researchLab.reset();sourceQuality.reset();incidentHistory.reset();}
+  document.body.dataset.view=state.view;
   state.limit=12;
   const labels={feed:['Incident feed','Incident intelligence','Recent cyber events. Source evidence. Actionable context.'],newsboard:['Newsboard','Global newsboard','Follow hacking, cyberattacks, data breaches and security developments around the world.'],newsletters:['Newsletters & updates','Newsletters & updates','Security news, threat research, and release notes from the publishers you follow.'],bangladesh:['Bangladesh','Bangladesh cyber watch','National advisories, local cyber activity, and developments relevant to Bangladesh.'],watchlist:['Watchlist','Your watchlist','Keep the signals that matter close. Saved on this browser.'],sources:['Sources','Intelligence sources','Know where your information comes from — and when it was checked.']};
+  labels.research=['Research Lab','Research & capability','Watch standards evolve, explore new security research, and build your practical skills.'];
+  labels.quality=['Source quality','Source quality dashboard','Track collection health, freshness, and the content available to read.'];
+  labels.history=['Incident history','Cybersecurity history','Explore the dates behind major incidents, disclosures and security developments.'];
   const [crumb,title,description]=labels[state.view];
   $('#breadcrumb-current').textContent=crumb;
   $('#page-title').innerHTML=`${h(title)}<span class="heading-dot">.</span>`;
   $('#page-description').textContent=description;
-  $('#feed-view').hidden=state.view==='sources';
+  $('#feed-view').hidden=['sources','research','quality','history'].includes(state.view);
   $('#sources-view').hidden=state.view!=='sources';
+  $('#research-view').hidden=state.view!=='research';
+  $('#quality-view').hidden=state.view!=='quality';
+  $('#history-view').hidden=state.view!=='history';
+  $('.stats').hidden=['quality','history'].includes(state.view);
   $('#export-button').hidden=state.view==='sources';
+  $('#export-button').innerHTML=`<span>${icon('download')}</span>Export CSV`;
+  $('#export-button').setAttribute('aria-label',state.view==='quality'?'Export filtered source quality as CSV':state.view==='history'?'Export filtered incident history as CSV':'Export filtered records as CSV');
   $('#publisher-channels').hidden=state.view!=='newsletters';
   $('#newsboard-context').hidden=state.view!=='newsboard';
   $('#main-content').classList.toggle('newsboard-view',state.view==='newsboard');
@@ -258,6 +292,7 @@ function setView(view,{reset=false,updateHash=true}={}) {
   $('#sort-select option[value="severity"]').hidden=['newsletters','newsboard'].includes(state.view);
   $('#search-input').placeholder=['newsletters','newsboard'].includes(state.view)?'Search articles, publishers, keywords, CVEs…':state.view==='bangladesh'?'Search Bangladesh advisories and activity…':'Search events, CVEs, organizations…';
   $$('.nav-item').forEach(button=>{const active=button.dataset.view===state.view;button.classList.toggle('active',active);if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');});
+  if(window.matchMedia('(max-width: 760px)').matches)requestAnimationFrame(()=>$('.nav-item[aria-current="page"]')?.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'}));
   if(updateHash)history.replaceState(null,'',`#${state.view}`);
   render();
 }
@@ -280,7 +315,7 @@ function detailProvenance(event) {
   const channel=state.data.sources.find(source=>source.id===event.sourceId);
   const curated=channel?.kind==='curated';
   const status=curated?'Curated record':channel?.status==='ok'?'Last fetch succeeded':channel?.status==='error'?'Last fetch failed':'Snapshot record';
-  return `<section class="detail-section detail-provenance"><h3>${icon('database')} Publication & collection</h3><div class="detail-channel"><span>${h(channel?.name||event.sourceId)}</span><span class="detail-collection-state ${channel?.status==='error'?'is-error':''}">${h(status)}</span></div><dl class="detail-record-grid"><div><dt>FIRST PUBLISHED</dt><dd>${h(detailDate(event.publishedAt))}</dd></div><div><dt>RECORD UPDATED</dt><dd>${h(detailDate(event.updatedAt))}</dd></div><div><dt>LAST SUCCESSFUL FEED FETCH</dt><dd>${curated?'Not applicable · curated':h(detailDate(channel?.lastSuccessAt))}</dd></div><div><dt>LAST FEED CHECK ATTEMPT</dt><dd>${curated?'Not applicable · curated':h(detailDate(channel?.lastAttemptAt))}</dd></div></dl><p class="detail-caption">${curated?'This record is maintained from the linked original sources. Automatic feed checks do not re-verify its assessment.':'Fetch times describe this source channel, not the time of the incident or a verification of every claim. A successful check may return no new articles.'}</p>${channel?.status==='error'?'<p class="detail-fetch-warning">The latest source check failed. This record is retained from the available snapshot; consult the original publication for newer developments.</p>':''}</section>`;
+  return `<section class="detail-section detail-provenance"><h3>${icon('database')} Publication & collection</h3><div class="detail-channel"><span>${h(channel?.name||event.sourceId)}</span><span class="detail-collection-state ${channel?.status==='error'?'is-error':''}">${h(status)}</span></div><dl class="detail-record-grid"><div><dt>${event.learning?.dateBasis==='source-updated'?'SOURCE UPDATED':'FIRST PUBLISHED'}</dt><dd>${h(detailDate(event.publishedAt))}</dd></div><div><dt>RECORD UPDATED</dt><dd>${h(detailDate(event.updatedAt))}</dd></div><div><dt>LAST SUCCESSFUL FEED FETCH</dt><dd>${curated?'Not applicable · curated':h(detailDate(channel?.lastSuccessAt))}</dd></div><div><dt>LAST FEED CHECK ATTEMPT</dt><dd>${curated?'Not applicable · curated':h(detailDate(channel?.lastAttemptAt))}</dd></div></dl><p class="detail-caption">${curated?'This record is maintained from the linked original sources. Automatic feed checks do not re-verify its assessment.':'Fetch times describe this source channel, not the time of the incident or a verification of every claim. A successful check may return no new articles.'}</p>${channel?.status==='error'?'<p class="detail-fetch-warning">The latest source check failed. This record is retained from the available snapshot; consult the original publication for newer developments.</p>':''}</section>`;
 }
 function detailTechnical(event) {
   const details=event.technicalDetails;
@@ -308,6 +343,11 @@ function detailCoverage(event) {
   const headlineMatch=channel?.group==='bangladesh' && channel?.kind==='secondary' && /\bcyber/i.test(event.title);
   return `<section class="detail-section"><div class="detail-coverage-note"><h4>${icon('globe')} Bangladesh publication context</h4><p>${headlineMatch?'This Bangladesh publisher’s headline contains “cyber” and matches the local newspaper topic filter.':'This article is classified as Bangladesh news coverage.'} Publisher location does not establish that an incident occurred in Bangladesh or affected Bangladeshi victims. Read the original story for the reported incident location and attribution.</p></div></section>`;
 }
+function detailResearchContext(event) {
+  if(!isResearchEvent(event)||!event.learning)return '';
+  const learning=event.learning;
+  return `<section class="detail-section research-detail-context"><span class="eyebrow">RESEARCH LAB</span><div class="research-tags"><span>${h(RESEARCH_KINDS[learning.kind]||'Project update')}</span>${learning.domains.map(domain=>`<span>${h(RESEARCH_DOMAINS[domain]||domain)}</span>`).join('')}${learning.perspectives.map(lens=>`<span>${h(lens==='offensive'?'Offensive practice':'Defensive validation')}</span>`).join('')}${['release','tool'].includes(learning.kind)?`<span>${h(RELEASE_LABELS[learning.releaseStatus])}</span>`:''}</div><p class="detail-caption">${learning.dateBasis==='source-updated'?'The date supplied by this feed is its source update date; it is not asserted to be the original publication date. ':''}${learning.kind==='release'?'Repository releases can describe project or tooling changes. Check the official publication for the standards edition.':'Topics and perspectives help organize your reading. The source establishes what was researched and whether a method is new.'}</p></section>`;
+}
 function detailArticle(event) {
   const article=event.article;
   const original=event.sources.find(source=>safeURL(source.url));
@@ -315,12 +355,24 @@ function detailArticle(event) {
   const reviewed=!article&&channel?.kind==='curated';
   const publisher=reviewed?'CyberWatch reviewed context':channel?.name||event.organization;
   const status=article?.status||'excerpt';
-  const paragraphs=article?.paragraphs.length?article.paragraphs:[event.description||event.summary].filter(Boolean);
+  const paragraphs=article?article.paragraphs:[event.description||event.summary].filter(Boolean);
   const images=(article?.images||[]).filter(item=>safeImageURL(item.url));
-  const readingTime=Math.max(1,Math.ceil(paragraphs.join(' ').split(/\s+/).length/220));
+  const wordCount=paragraphs.join(' ').trim().split(/\s+/).filter(Boolean).length;
+  const readingTime=Math.max(1,Math.ceil(wordCount/220));
   const explanation=reviewed?'This is reviewed CyberWatch context based on the linked evidence. It is not the publisher’s article text. Open the original publication or Sources & evidence for the source material.':article?.note || (status==='full'?'Publisher text is available to read below.':status==='restricted'?'The complete article requires access on the publisher’s website.':status==='unavailable'?'The publisher’s full article is not available in this snapshot.':'The available excerpt is shown below. Open the original publication for the complete article.');
   const figure=(item,index)=>`<figure class="reader-figure"><img src="${h(safeImageURL(item.url))}" alt="${h(item.alt||'Image accompanying the publisher article')}" loading="${index?'lazy':'eager'}" decoding="async" referrerpolicy="no-referrer" data-article-image>${item.caption||item.credit?`<figcaption>${h(item.caption)}${item.caption&&item.credit?' · ':''}${h(item.credit)}</figcaption>`:''}</figure>`;
-  return `<article class="article-reader"><div class="reader-byline"><span>${icon('newspaper')}<strong>${h(publisher)}</strong></span><span>${h(fullDate(event.publishedAt))} · ${readingTime} min read</span></div><div class="reader-status"><span class="reader-label ${status==='full'?'reader-full':''}">${h(reviewed?'Reviewed context':readerLabels[status])}</span><p>${h(explanation)}</p></div>${images[0]?figure(images[0],0):''}<div class="reader-text">${paragraphs.map(paragraph=>`<p>${h(paragraph)}</p>`).join('')}</div>${images.length>1?`<section class="reader-gallery" aria-label="Additional publisher images">${images.slice(1).map((item,index)=>figure(item,index+1)).join('')}</section>`:''}<footer class="reader-attribution"><p>${reviewed?'Reviewed context':'Original publication'}: <strong>${h(publisher)}</strong>. ${reviewed?'Source-based assessment prepared for this console.':status==='full'?'Source-provided article text.':'Available source excerpt and publication context.'} Reported claims remain attributed to the publisher.</p>${article?.fetchedAt?`<p class="detail-caption">Article collected ${h(fullTimestamp(article.fetchedAt))}.</p>`:''}${original?`<a class="button primary original-article" href="${h(safeURL(original.url))}" target="_blank" rel="noopener noreferrer">Open original publication ${icon('external')}</a>`:''}${['full','excerpt'].includes(status)?'<a class="reader-notices" href="./third-party-notices.txt" target="_blank" rel="noopener noreferrer">Publisher content notices</a>':''}</footer></article>`;
+  const incomplete=!reviewed&&status!=='full';
+  const continuation=incomplete?`<div class="reader-continuation"><strong>${article?.truncated?'The source excerpt ends here.':'The complete article is not in this snapshot.'}</strong><p>${wordCount?'The text above is the available source content.':'No article body was provided in this snapshot.'} Continue at the original publication for the complete report${status==='restricted'?'; publisher access may be required':''}.</p></div>`:'';
+  return `<article class="article-reader">
+    ${detailResearchContext(event)}
+    <div class="reader-byline"><span>${icon('newspaper')}<strong>${h(publisher)}</strong></span><span>${event.learning?.dateBasis==='source-updated'?'Source updated ':''}${h(fullDate(event.publishedAt))} · ${wordCount?`${readingTime} min ${incomplete?'of available text':'read'}`:'No article text in snapshot'}</span></div>
+    <div class="reader-status ${incomplete?'reader-partial-status':''}"><span class="reader-label ${status==='full'?'reader-full':''}">${h(reviewed?'Reviewed context':readerLabels[status])}${article?.retained?' · retained copy':''}</span><p>${h(explanation)}</p><small>${wordCount.toLocaleString()} words available${article?.origin==='feed'?' · publisher feed':article?.origin==='publisher'?' · publisher page':''}</small>${incomplete&&original?`<a href="${h(safeURL(original.url))}" target="_blank" rel="noopener noreferrer">Continue at original publication ${icon('external')}</a>`:''}</div>
+    ${images[0]?figure(images[0],0):''}<div class="reader-text">${paragraphs.length?paragraphs.map(paragraph=>`<p>${h(paragraph)}</p>`).join(''):'<p class="detail-unavailable">Article text is not available in this snapshot. Open the original publication to read the report.</p>'}</div>${continuation}
+    ${images.length>1?`<section class="reader-gallery" aria-label="Additional publisher images">${images.slice(1).map((item,index)=>figure(item,index+1)).join('')}</section>`:''}
+    <footer class="reader-attribution"><p>${reviewed?'Reviewed context':'Original publication'}: <strong>${h(publisher)}</strong>. ${reviewed?'Source-based assessment prepared for this console.':status==='full'?'Source-provided text with its availability and collection details shown above.':'Available source excerpt and publication context.'} Reported claims remain attributed to the publisher.</p>
+    ${article?.fetchedAt?`<p class="detail-caption">${article.retained?'Retained text collected':'Available text collected'} ${h(fullTimestamp(article.fetchedAt))}.</p>`:''}
+    ${article?.lastAttemptAt&&article.lastAttemptAt!==article.fetchedAt?`<p class="detail-caption">Last article collection attempt ${h(fullTimestamp(article.lastAttemptAt))}.</p>`:''}
+    ${original?`<a class="button primary original-article" href="${h(safeURL(original.url))}" target="_blank" rel="noopener noreferrer">Open original publication ${icon('external')}</a>`:''}${['full','excerpt'].includes(status)?'<a class="reader-notices" href="./third-party-notices.txt" target="_blank" rel="noopener noreferrer">Publisher content notices</a>':''}</footer></article>`;
 }
 function renderDetail() {
   const event=state.data?.events.find(item=>item.id===state.selectedId);
@@ -328,7 +380,7 @@ function renderDetail() {
   const news=isNewsEvent(event);
   const channel=state.data.sources.find(source=>source.id===event.sourceId);
   const primaryCount=event.sources.filter(source=>source.kind==='primary').length;
-  $('#detail-header').innerHTML=`<div class="detail-heading"><div class="detail-labels">${eventBadge(event)}<span class="detail-category">${h(news?'Publisher update':event.category)}</span>${event.bangladeshScope?`<span class="detail-category">${h(scopeLabels[event.bangladeshScope])}</span>`:''}${event.exploited?'<span class="detail-category">Exploitation reported</span>':''}</div><h2 id="detail-title">${h(event.title)}</h2><div class="detail-org-line"><span class="org-icon" aria-hidden="true">${h(initials(event.organization))}</span><span>${h(event.organization)}</span><span class="meta-sep"></span><span class="detail-date">Published ${h(fullDate(event.publishedAt))}</span></div></div>`;
+  $('#detail-header').innerHTML=`<div class="detail-heading"><div class="detail-labels">${eventBadge(event)}<span class="detail-category">${h(isResearchEvent(event)?'Research Lab':news?'Publisher update':event.category)}</span>${event.bangladeshScope?`<span class="detail-category">${h(scopeLabels[event.bangladeshScope])}</span>`:''}${event.exploited?'<span class="detail-category">Exploitation reported</span>':''}</div><h2 id="detail-title">${h(event.title)}</h2><div class="detail-org-line"><span class="org-icon" aria-hidden="true">${h(initials(event.organization))}</span><span>${h(event.organization)}</span><span class="meta-sep"></span><span class="detail-date">${event.learning?.dateBasis==='source-updated'?'Source updated':'Published'} ${h(fullDate(event.publishedAt))}</span></div></div>`;
   const saved=state.saved.has(event.id);
   $('#detail-bookmark').classList.toggle('saved',saved);
   $('#detail-bookmark').setAttribute('aria-label',saved?'Remove event from watchlist':'Save event to watchlist');
@@ -345,7 +397,7 @@ function renderDetail() {
     $('#detail-panel').innerHTML=`<section class="detail-section"><h3>${icon('shield')} Evidence assessment</h3><div class="assessment-note"><strong>${event.confidence==='confirmed'?'CONFIRMED SOURCE REPORT':'REPORTED · SEE QUALIFICATIONS'}</strong>${h(event.evidenceNote||'Read the original source for the scope and confidence of this report.')}</div><p class="detail-caption">${primaryCount} primary source${primaryCount===1?'':'s'} · ${event.sources.length-primaryCount} secondary report${event.sources.length-primaryCount===1?'':'s'}. Confidence describes the source report; it does not independently confirm every technical claim.</p></section>${detailCoverage(event)}<section class="detail-section"><h3>${icon('link')} Original sources</h3>${event.sources.length?event.sources.map(source=>`<a class="evidence-source" href="${h(safeURL(source.url))}" target="_blank" rel="noopener noreferrer"><span class="evidence-source-header"><strong>${h(source.name)}</strong>${icon('external')}</span><span class="source-kind">${source.kind==='primary'?'PRIMARY SOURCE':'SECONDARY REPORT'}${source.publishedAt?' · '+h(detailDate(source.publishedAt)):''}</span><span class="source-url">${h(source.url)}</span></a>`).join(''):'<p>No source links are included in this record.</p>'}</section>${detailCves(event)}${detailProvenance(event)}<div class="assessment-note"><strong>READ BEFORE ACTING</strong>Recommendations are source-informed analyst guidance. Confirm affected versions, configurations and business exposure against the linked original advisory. Missing indicators, scores or attack details have not been inferred.</div>`;
   } else if(news) {
     const original=event.sources.find(source=>safeURL(source.url));
-    $('#detail-panel').innerHTML=`<dl class="context-grid"><div><dt>PUBLISHER</dt><dd>${h(channel?.name||event.organization)}</dd></div><div><dt>PUBLICATION TYPE</dt><dd>News, research or release note</dd></div><div><dt>${event.bangladeshScope==='coverage'?'COVERAGE / PUBLISHER REGION':'REGION / REACH'}</dt><dd>${h(event.geography.join(', ')||'Not specified')}</dd></div><div><dt>ASSESSMENT</dt><dd>Publisher update · unscored</dd></div></dl><section class="detail-section"><h3>${icon('newspaper')} Publisher brief</h3><p>${h(event.description||event.summary)}</p>${original?`<a class="button primary original-article" href="${h(safeURL(original.url))}" target="_blank" rel="noopener noreferrer">Read original publication ${icon('external')}</a>`:''}</section>${detailCoverage(event)}<section class="detail-section"><h3>${icon('alert')} Reported impact & relevance</h3>${detailList(event.impact,'Impact is not established in the available publication metadata.')}</section><section class="detail-section"><h3>${icon('shield')} Review & follow-up</h3><p class="detail-caption">Analyst guidance for reviewing this publication.</p>${detailList(event.recommendations,'Read the original report and verify any affected products or organizations before taking action.',true)}</section>${event.technicalDetails?detailTechnical(event):''}${event.evidenceNote?`<section class="detail-section"><div class="assessment-note"><strong>PUBLICATION EVIDENCE & LIMITS</strong>${h(event.evidenceNote)}</div></section>`:''}${detailCves(event)}${detailProvenance(event)}${detailRelated(event)}<div class="assessment-note"><strong>READ IN CONTEXT</strong>This is a publisher update. Inclusion does not assign a severity or establish compromise of an organization. Feed excerpts may omit technical context; verify claims in the original publication.</div>`;
+    $('#detail-panel').innerHTML=`${detailResearchContext(event)}<dl class="context-grid"><div><dt>PUBLISHER</dt><dd>${h(channel?.name||event.organization)}</dd></div><div><dt>PUBLICATION TYPE</dt><dd>News, research or release note</dd></div><div><dt>${event.bangladeshScope==='coverage'?'COVERAGE / PUBLISHER REGION':'REGION / REACH'}</dt><dd>${h(event.geography.join(', ')||'Not specified')}</dd></div><div><dt>ASSESSMENT</dt><dd>Publisher update · unscored</dd></div></dl><section class="detail-section"><h3>${icon('newspaper')} Publisher brief</h3><p>${h(event.description||event.summary)}</p>${original?`<a class="button primary original-article" href="${h(safeURL(original.url))}" target="_blank" rel="noopener noreferrer">Read original publication ${icon('external')}</a>`:''}</section>${detailCoverage(event)}<section class="detail-section"><h3>${icon('alert')} Reported impact & relevance</h3>${detailList(event.impact,'Impact is not established in the available publication metadata.')}</section><section class="detail-section"><h3>${icon('shield')} Review & follow-up</h3><p class="detail-caption">Analyst guidance for reviewing this publication.</p>${detailList(event.recommendations,'Read the original report and verify any affected products or organizations before taking action.',true)}</section>${event.technicalDetails?detailTechnical(event):''}${event.evidenceNote?`<section class="detail-section"><div class="assessment-note"><strong>PUBLICATION EVIDENCE & LIMITS</strong>${h(event.evidenceNote)}</div></section>`:''}${detailCves(event)}${detailProvenance(event)}${detailRelated(event)}<div class="assessment-note"><strong>READ IN CONTEXT</strong>This is a publisher update. Inclusion does not assign a severity or establish compromise of an organization. Feed excerpts may omit technical context; verify claims in the original publication.</div>`;
   } else {
     $('#detail-panel').innerHTML=`<dl class="context-grid"><div><dt>REPORTED STATUS</dt><dd>${h(event.status)}</dd></div><div><dt>EVIDENCE</dt><dd>${event.confidence==='confirmed'?'Confirmed source report':'Reported · qualified'}</dd></div><div><dt>REGION / REACH</dt><dd>${h(event.geography.join(', ')||'Not specified')}</dd></div><div><dt>SECTOR / TECHNOLOGY</dt><dd>${h(event.sectors.join(', ')||'Not specified')}</dd></div></dl><section class="detail-section"><h3>${icon('file')} What happened</h3><p>${h(event.description||event.summary)}</p></section><section class="detail-section"><div class="assessment-note"><strong>SEVERITY & EXPLOITATION</strong>${h(event.severityBasis)}<span class="detail-assessment-extra">${event.exploited?'Exploitation is reported in the source material.':'Vulnerability exploitation is not established by this record. This flag does not determine whether a reported breach occurred.'}</span></div></section>${detailTechnical(event)}<section class="detail-section"><h3>${icon('alert')} Potential impact</h3>${detailList(event.impact,'Impact has not been established. Review the source before determining exposure.')}</section><section class="detail-section"><h3>${icon('shield')} Recommended actions</h3>${detailList(event.recommendations,'Review the original advisory and assess applicability to your environment.',true)}</section>${detailCves(event)}${event.evidenceNote?`<section class="detail-section"><div class="assessment-note"><strong>EVIDENCE NOTE</strong>${h(event.evidenceNote)}</div></section>`:''}${detailProvenance(event)}${detailRelated(event)}${event.tags.length?`<div class="tag-list">${event.tags.map(tag=>`<span class="tag">${h(tag)}</span>`).join('')}</div>`:''}`;
   }
@@ -357,7 +409,7 @@ function setDetailTab(tab) {
 }
 function openEvent(id,{updateHash=true}={}) {
   if(!state.data?.events.some(event=>event.id===id)){toast('This event is not in the current snapshot.');return;}
-  state.selectedId=id;state.detailTab=state.view==='newsboard'?'article':'overview';renderDetail();
+  state.selectedId=id;state.detailTab=['newsboard','research'].includes(state.view)?'article':'overview';renderDetail();
   if(!$('#event-dialog').open)$('#event-dialog').showModal();
   $('#detail-scroll').scrollTop=0;
   document.body.classList.add('overflow-clip');
@@ -365,13 +417,20 @@ function openEvent(id,{updateHash=true}={}) {
   $('#detail-close').focus();
 }
 function closeEvent() { $('#event-dialog').close(); }
-$('#event-dialog').addEventListener('close',()=>{const closedId=state.selectedId;state.selectedId=null;document.body.classList.remove('overflow-clip');history.replaceState(null,'',`#${state.view}`);const row=$$('[data-open-event]').find(button=>button.dataset.openEvent===closedId);(row||$('.nav-item[aria-current="page"]')||$('#search-input')).focus();});
+$('#event-dialog').addEventListener('close',()=>{const closedId=state.selectedId;state.selectedId=null;document.body.classList.remove('overflow-clip');history.replaceState(null,'',`#${state.view}`);const row=$$('[data-open-event],[data-research-open]').find(button=>(button.dataset.openEvent===closedId||button.dataset.researchOpen===closedId)&&button.getClientRects().length);(row||$('.nav-item[aria-current="page"]')||$('#search-input')).focus();});
 function toggleBookmark() {
   const id=state.selectedId;if(!id)return;
   if(state.saved.has(id))state.saved.delete(id);else state.saved.add(id);
   try{localStorage.setItem(STORAGE_KEY,JSON.stringify([...state.saved]));storageAvailable=true;}catch{storageAvailable=false;}
   renderDetail();render();
   toast(storageAvailable?(state.saved.has(id)?'Event saved to your watchlist.':'Event removed from your watchlist.'):'Watchlist changed for this session. Browser storage is unavailable.');
+}
+function toggleResearchBookmark(id) {
+  if(!state.data?.events.some(event=>event.id===id))return;
+  if(state.saved.has(id))state.saved.delete(id);else state.saved.add(id);
+  try{localStorage.setItem(STORAGE_KEY,JSON.stringify([...state.saved]));storageAvailable=true;}catch{storageAvailable=false;}
+  render();
+  toast(storageAvailable?(state.saved.has(id)?'Research saved to your watchlist.':'Research removed from your watchlist.'):'Watchlist updated for this session. Browser storage is unavailable.');
 }
 async function copyBrief() {
   const event=state.data?.events.find(item=>item.id===state.selectedId);if(!event)return;
@@ -383,7 +442,14 @@ async function copyBrief() {
     catch{toast('Automatic copy is unavailable. The brief is selected in the detail panel; press Ctrl+C.');}
   }
 }
+function downloadCSV(csv,count,label) {
+  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  const link=document.createElement('a');link.href=url;link.download=`cyberwatch-${state.view}-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  toast(`Exported ${count} ${label}.`);
+}
 function exportCSV() {
+  if(state.view==='quality'){const count=sourceQuality.count();if(count)downloadCSV(sourceQuality.csv(),count,'source quality records');return;}
+  if(state.view==='history'){const items=incidentHistory.items();if(items.length)downloadCSV(makeHistoryCSV(items),items.length,'dated history entries');return;}
   const events=visibleEvents();if(!events.length){toast('No events to export.');return;}
   const url=URL.createObjectURL(new Blob([makeCSV(events)],{type:'text/csv;charset=utf-8'}));
   const link=document.createElement('a');link.href=url;link.download=`cyberwatch-${state.view}-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -539,7 +605,7 @@ function routeHash() {
   if(hash.startsWith('event=')){
     let id;try{id=decodeURIComponent(hash.slice(6));}catch{return;}
     const record=state.data?.events.find(event=>event.id===id);
-    if(record)setView(eventSourceType(record)==='mainstream'?'newsboard':isBangladeshEvent(record)?'bangladesh':isNewsEvent(record)?'newsletters':'feed',{reset:true,updateHash:false});
+    if(record)setView(isResearchEvent(record)?'research':eventSourceType(record)==='mainstream'?'newsboard':isBangladeshEvent(record)?'bangladesh':isNewsEvent(record)?'newsletters':'feed',{reset:true,updateHash:false});
     openEvent(id,{updateHash:false});
   }else{
     if($('#event-dialog').open)$('#event-dialog').close();
@@ -551,7 +617,7 @@ document.addEventListener('click',event=>{
   if(target.dataset.view){setView(target.dataset.view,{reset:true});window.scrollTo({top:0,behavior:'instant'});$('#page-title').focus({preventScroll:true});return;}
   if(target.dataset.openEvent){openEvent(target.dataset.openEvent);return;}
   if(target.dataset.collection){setView('feed',{reset:true});state.category=target.dataset.collection;renderEventList();return;}
-  if(target.dataset.sourceFilter){const source=state.data?.sources.find(item=>item.id===target.dataset.sourceFilter);const view=['newsletters','newsboard','bangladesh'].includes(state.view)?state.view:source?.group==='newsboard'||source?.sourceType==='vendor'?'newsboard':source?.group==='news'?'newsletters':source?.group==='bangladesh'?'bangladesh':'feed';const selected=state.source===target.dataset.sourceFilter;setView(view,{reset:true});state.source=selected?'all':target.dataset.sourceFilter;renderEventList();return;}
+  if(target.dataset.sourceFilter){const source=state.data?.sources.find(item=>item.id===target.dataset.sourceFilter);if(source?.group==='research'){setView('research',{reset:true});researchLab.setSource(source.id);return;}const view=['newsletters','newsboard','bangladesh'].includes(state.view)?state.view:source?.group==='newsboard'||source?.sourceType==='vendor'?'newsboard':source?.group==='news'?'newsletters':source?.group==='bangladesh'?'bangladesh':'feed';const selected=state.source===target.dataset.sourceFilter;setView(view,{reset:true});state.source=selected?'all':target.dataset.sourceFilter;renderEventList();return;}
   if(target.dataset.newsScope){state.newsScope=target.dataset.newsScope;state.limit=12;renderEventList();return;}
   if(target.dataset.newsTopic){state.newsTopic=target.dataset.newsTopic;state.limit=12;renderEventList();return;}
   if(target.dataset.regionScope){state.regionScope=target.dataset.regionScope;state.tab='all';state.limit=12;renderEventList();return;}
@@ -583,7 +649,7 @@ $('#info-done').addEventListener('click',()=>$('#info-dialog').close());
 $('#info-dialog').addEventListener('close',()=>{if(!$('#event-dialog').open)document.body.classList.remove('overflow-clip');});
 document.addEventListener('keydown',event=>{
   const typing=['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)||document.activeElement?.isContentEditable;
-  if(event.key==='/'&&!typing&&!$('#event-dialog').open&&!$('#info-dialog').open){event.preventDefault();if(state.view==='sources')setView('feed');$('#search-input').focus();}
+  if(event.key==='/'&&!typing&&!$('#event-dialog').open&&!$('#info-dialog').open){event.preventDefault();if(state.view==='research'){researchLab.focusSearch();return;}if(state.view==='quality'){sourceQuality.focusSearch();return;}if(state.view==='history'){incidentHistory.focusSearch();return;}if(state.view==='sources')setView('feed');$('#search-input').focus();}
   if(event.target.matches('.detail-tabs [data-detail-tab]')&&['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){
     event.preventDefault();const tabs=$$('.detail-tabs [data-detail-tab]');const index=tabs.indexOf(event.target);const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
     setDetailTab(tabs[next].dataset.detailTab);tabs[next].focus({preventScroll:true});

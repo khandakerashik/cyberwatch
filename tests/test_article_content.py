@@ -266,6 +266,55 @@ class ReaderExtractionTests(unittest.TestCase):
         self.assertTrue(all(len(value) <= 4000 for value in article["paragraphs"]))
         self.assertEqual(" ".join(article["paragraphs"]), ("security " * 700).strip())
 
+    def test_unfinished_publisher_summary_is_explicit_and_gets_ellipsis(self):
+        summary = "The vendor published a security advisory about remote support sessions.\n\n" + LONG_TEXT + " Depending on the platform an attacker may also run"
+        article = reader.ingest_feed_content({"url": "https://news.example.org/"}, summary=summary)
+        self.assertEqual(article["availabilityReason"], "publisher-feed-excerpt")
+        self.assertEqual(len(article["paragraphs"]), 2)
+        self.assertTrue(article["truncated"])
+        self.assertTrue(article["paragraphs"][-1].endswith("run…"))
+        self.assertIn("not the complete article", article["note"])
+
+    def test_permitted_partial_feed_keeps_available_body_past_excerpt_budget(self):
+        markup = "<p>" + LONG_TEXT + "</p>" + "<p>" + "technical detail " * 200 + "</p><p>Read more</p>"
+        article = reader.ingest_feed_content(SOURCE, content=markup)
+        self.assertEqual(article["status"], "excerpt")
+        self.assertEqual(article["availabilityReason"], "publisher-partial")
+        self.assertGreater(sum(len(p.split()) for p in article["paragraphs"]), 120)
+
+    def test_reader_limit_does_not_collapse_allowed_content_to_120_words(self):
+        article = reader.ingest_feed_content(SOURCE, content="<p>" + "security " * 12000 + "</p>")
+        self.assertEqual(article["availabilityReason"], "reader-limit")
+        self.assertTrue(article["truncated"])
+        self.assertGreater(sum(len(p.split()) for p in article["paragraphs"]), 1000)
+        self.assertLessEqual(sum(map(len, article["paragraphs"])), reader.MAX_TEXT_CHARS)
+        self.assertTrue(all(len(p) <= reader.MAX_PARAGRAPH_CHARS for p in article["paragraphs"]))
+
+    def test_semantic_body_scope_excludes_title_and_related_main_content(self):
+        parser = reader.ContentParser("https://vendor.example.org/advisory")
+        parser.feed("<main><h1>Security notice</h1><div itemprop='articleBody'><p>" + LONG_TEXT +
+                    "</p><img src='/article.jpg'></div><p>" + LONG_TEXT + " unrelated recommendations.</p></main>")
+        result = parser.finish(require_article=True)
+        self.assertEqual(result["paragraphs"], [LONG_TEXT])
+        self.assertEqual(result["images"][0]["url"], "https://vendor.example.org/article.jpg")
+
+    def test_dedicated_article_body_class_works_without_article_tag(self):
+        parser = reader.ContentParser()
+        parser.feed("<div class='post-body'><p>" + LONG_TEXT + "</p></div>")
+        self.assertEqual(parser.finish(require_article=True)["paragraphs"], [LONG_TEXT])
+
+    def test_complete_release_note_without_terminal_punctuation_is_not_demoted(self):
+        article = reader.ingest_feed_content(SOURCE, content="<p>" + LONG_TEXT + "</p><ul><li>Release version 5.0.0</li></ul>")
+        self.assertEqual(article["status"], "full")
+        self.assertEqual(article["availabilityReason"], "full")
+        self.assertFalse(article["truncated"])
+
+    def test_permitted_feed_ending_with_ellipsis_remains_partial(self):
+        article = reader.ingest_feed_content(SOURCE, content="<p>" + LONG_TEXT + " More technical details…</p>")
+        self.assertEqual(article["status"], "excerpt")
+        self.assertEqual(article["availabilityReason"], "publisher-partial")
+        self.assertFalse(article["paragraphs"][-1].endswith("……"))
+
 
 class ReaderRobotsTests(unittest.TestCase):
     def test_longest_rule_and_allow_tie(self):
@@ -419,6 +468,99 @@ class ReaderEnrichmentTests(unittest.TestCase):
         reader.enrich_events(items, {"vendor": SOURCE}, timestamp=STAMP, fetcher=unexpected)
         self.assertFalse(calls)
         self.assertEqual(items[0]["article"]["status"], "excerpt")
+
+    def test_licensed_feed_only_policy_does_not_fetch_page_or_robots(self):
+        source = deepcopy(SOURCE)
+        source["articlePolicy"]["allowPageFetch"] = False
+        def unexpected(*args, **kwargs):
+            self.fail("Feed-only publisher page was fetched")
+        items = [event()]
+        reader.enrich_events(items, {"vendor": source}, timestamp=STAMP, fetcher=unexpected)
+        self.assertEqual(items[0]["article"]["availabilityReason"], "publisher-feed-excerpt")
+        article = reader.ingest_feed_content(source, content="<p>" + LONG_TEXT + "</p>")
+        self.assertEqual(article["status"], "full")
+
+    def test_expired_complete_text_survives_network_failure_and_has_retry_time(self):
+        old = [event()]
+        reader.enrich_events(old, {"vendor": SOURCE}, timestamp=STAMP, fetcher=fake_fetch)
+        items = [event()]
+        later = "2026-11-08T12:00:00Z"
+        reader.enrich_events(items, {"vendor": SOURCE}, previous={"events": old}, timestamp=later,
+                             fetcher=Mock(side_effect=OSError("offline")))
+        article = items[0]["article"]
+        self.assertEqual(article["status"], "full")
+        self.assertEqual(article["paragraphs"], old[0]["article"]["paragraphs"])
+        self.assertEqual(article["fetchedAt"], STAMP)
+        self.assertEqual(article["lastAttemptAt"], later)
+        self.assertEqual(article["availabilityReason"], "fetch-failed")
+        self.assertTrue(article["retained"])
+        retry = Mock(side_effect=OSError("offline"))
+        reader.enrich_events([event()], {"vendor": SOURCE}, previous={"events": items},
+                             timestamp="2026-11-08T13:00:00Z", fetcher=retry)
+        retry.assert_not_called()
+        reader.enrich_events([event()], {"vendor": SOURCE}, previous={"events": items},
+                             timestamp="2026-11-08T19:00:00Z", fetcher=retry)
+        self.assertTrue(retry.called)
+
+    def test_expired_complete_text_survives_failed_extraction(self):
+        old = [event()]
+        reader.enrich_events(old, {"vendor": SOURCE}, timestamp=STAMP, fetcher=fake_fetch)
+        def empty(url, hosts, **kwargs):
+            return fake_fetch(url, hosts, **kwargs) if url.endswith("robots.txt") else (b"<html><p>Menu only</p></html>", url, "text/html")
+        items = [event()]
+        reader.enrich_events(items, {"vendor": SOURCE}, previous={"events": old}, timestamp="2026-11-08T12:00:00Z", fetcher=empty)
+        self.assertEqual(items[0]["article"]["status"], "full")
+        self.assertEqual(items[0]["article"]["availabilityReason"], "extraction-failed")
+
+    def test_request_budget_deferral_keeps_complete_same_version_text(self):
+        old = [event()]
+        reader.enrich_events(old, {"vendor": SOURCE}, timestamp=STAMP, fetcher=fake_fetch)
+        items = [event()]
+        reader.enrich_events(items, {"vendor": SOURCE}, previous={"events": old}, timestamp="2026-11-08T12:00:00Z", max_articles=0, fetcher=fake_fetch)
+        self.assertEqual(items[0]["article"]["status"], "full")
+        self.assertTrue(items[0]["article"]["retained"])
+        self.assertEqual(items[0]["article"]["fetchedAt"], STAMP)
+
+    def test_new_feed_full_body_wins_over_cached_page_failure(self):
+        old = [event()]
+        reader.enrich_events(old, {"vendor": SOURCE}, timestamp=STAMP, fetcher=Mock(side_effect=OSError("offline")))
+        item = event()
+        item["article"] = reader.ingest_feed_content(SOURCE, content="<p>" + LONG_TEXT + "</p>", timestamp=STAMP)
+        fetcher = Mock(side_effect=OSError("offline"))
+        reader.enrich_events([item], {"vendor": SOURCE}, previous={"events": old}, timestamp="2026-10-30T13:00:00Z", fetcher=fetcher)
+        self.assertEqual(item["article"]["status"], "full")
+        self.assertEqual(item["article"]["origin"], "feed")
+        fetcher.assert_not_called()
+
+    def test_changed_publication_cannot_reuse_previous_complete_version_on_failure(self):
+        old = [event()]
+        reader.enrich_events(old, {"vendor": SOURCE}, timestamp=STAMP, fetcher=fake_fetch)
+        items = [event(updated="2026-10-30T13:00:00Z")]
+        reader.enrich_events(items, {"vendor": SOURCE}, previous={"events": old}, timestamp="2026-10-30T13:00:00Z", fetcher=Mock(side_effect=OSError("offline")))
+        self.assertEqual(items[0]["article"]["status"], "excerpt")
+        self.assertFalse(items[0]["article"]["retained"])
+
+    def test_permission_revocation_removes_older_complete_cached_text(self):
+        items = [event()]
+        reader.enrich_events(items, {"vendor": SOURCE}, timestamp=STAMP, fetcher=fake_fetch)
+        source = deepcopy(SOURCE)
+        source["articlePolicy"]["allowFullText"] = False
+        fetcher = Mock(side_effect=OSError("offline"))
+        reader.enrich_events(items, {"vendor": source}, previous={"events": deepcopy(items)}, timestamp="2026-10-30T13:00:00Z", fetcher=fetcher)
+        self.assertEqual(items[0]["article"]["status"], "excerpt")
+        self.assertEqual(items[0]["article"]["availabilityReason"], "permission-required")
+        fetcher.assert_not_called()
+
+    def test_new_access_restriction_is_not_hidden_by_retaining_old_complete_text(self):
+        old = [event()]
+        reader.enrich_events(old, {"vendor": SOURCE}, timestamp=STAMP, fetcher=fake_fetch)
+        def restricted(url, hosts, **kwargs):
+            return fake_fetch(url, hosts, **kwargs) if url.endswith("robots.txt") else (page(LONG_TEXT + " Subscribe to continue reading."), url, "text/html")
+        items = [event()]
+        reader.enrich_events(items, {"vendor": SOURCE}, previous={"events": old}, timestamp="2026-11-08T12:00:00Z", fetcher=restricted)
+        self.assertEqual(items[0]["article"]["status"], "restricted")
+        self.assertEqual(items[0]["article"]["availabilityReason"], "publisher-restricted")
+        self.assertFalse(items[0]["article"]["retained"])
 
 
 if __name__ == "__main__":

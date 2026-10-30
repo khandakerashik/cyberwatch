@@ -187,7 +187,7 @@ test('exports retain publication stream and Bangladesh context without dropping 
   const item = event({ category: 'News', stream: 'news', geography: ['Bangladesh'], bangladeshScope: 'coverage' });
   const csv = makeCSV([item]);
   assert.match(csv, /"Stream","Geography","Bangladesh scope"/);
-  assert.match(csv, /"news","Bangladesh","coverage"\r\n$/);
+  assert.match(csv, /"news","Bangladesh","coverage","","","",""\r\n$/);
   const brief = makeBrief(item);
   assert.match(brief, /Publication stream: Newsletter \/ news/);
   assert.match(brief, /Coverage \/ publisher region: Bangladesh/);

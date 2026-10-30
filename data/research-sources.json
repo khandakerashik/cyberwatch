@@ -1,0 +1,828 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "research-owasp-wstg",
+      "name": "OWASP · Web Security Testing Guide",
+      "url": "https://owasp.org/www-project-web-security-testing-guide/",
+      "feedUrls": [
+        "https://github.com/OWASP/wstg/releases.atom"
+      ],
+      "format": "atom",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 10,
+      "retentionDays": 3650,
+      "keywordFilter": false,
+      "description": "Original repository publications; versions and prerelease labels are preserved.",
+      "learning": {
+        "kind": "release",
+        "domains": [
+          "web"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "OWASP WSTG"
+      },
+      "watchRelease": true,
+      "articlePolicy": {
+        "allowFullText": true,
+        "allowPageFetch": false,
+        "allowedHosts": [
+          "github.com"
+        ],
+        "license": "CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/). Text adapted from official release notes; retain attribution and share adapted content under the same license.",
+        "attribution": "OWASP WSTG contributors",
+        "licenseUrl": "https://github.com/OWASP/wstg/blob/master/LICENSE"
+      }
+    },
+    {
+      "id": "research-owasp-asvs",
+      "name": "OWASP · Application Security Verification Standard",
+      "url": "https://owasp.org/www-project-application-security-verification-standard/",
+      "feedUrls": [
+        "https://github.com/OWASP/ASVS/releases.atom"
+      ],
+      "format": "atom",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 10,
+      "retentionDays": 3650,
+      "keywordFilter": false,
+      "description": "Original repository publications; versions and prerelease labels are preserved.",
+      "learning": {
+        "kind": "release",
+        "domains": [
+          "web",
+          "api"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "OWASP ASVS"
+      },
+      "watchRelease": true,
+      "articlePolicy": {
+        "allowFullText": true,
+        "allowPageFetch": false,
+        "allowedHosts": [
+          "github.com"
+        ],
+        "license": "CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/). Text adapted from official release notes; retain attribution and share adapted content under the same license.",
+        "attribution": "OWASP ASVS contributors",
+        "licenseUrl": "https://github.com/OWASP/ASVS/blob/master/LICENSE.md"
+      }
+    },
+    {
+      "id": "research-owasp-mastg",
+      "name": "OWASP · Mobile Application Security Testing Guide",
+      "url": "https://mas.owasp.org/MASTG/",
+      "feedUrls": [
+        "https://github.com/OWASP/mastg/releases.atom"
+      ],
+      "format": "atom",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 10,
+      "retentionDays": 3650,
+      "keywordFilter": false,
+      "description": "Original repository publications; versions and prerelease labels are preserved.",
+      "learning": {
+        "kind": "release",
+        "domains": [
+          "mobile"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "OWASP MASTG"
+      },
+      "watchRelease": true,
+      "articlePolicy": {
+        "allowFullText": true,
+        "allowPageFetch": false,
+        "allowedHosts": [
+          "github.com"
+        ],
+        "license": "CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/). Text adapted from official release notes; retain attribution and share adapted content under the same license.",
+        "attribution": "OWASP MASTG contributors",
+        "licenseUrl": "https://github.com/OWASP/mastg/blob/master/License.md"
+      }
+    },
+    {
+      "id": "research-owasp-masvs",
+      "name": "OWASP · Mobile Application Security Verification Standard",
+      "url": "https://mas.owasp.org/MASVS/",
+      "feedUrls": [
+        "https://github.com/OWASP/masvs/releases.atom"
+      ],
+      "format": "atom",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 10,
+      "retentionDays": 3650,
+      "keywordFilter": false,
+      "description": "Original repository publications; versions and prerelease labels are preserved.",
+      "learning": {
+        "kind": "release",
+        "domains": [
+          "mobile"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "OWASP MASVS"
+      },
+      "watchRelease": true,
+      "articlePolicy": {
+        "allowFullText": true,
+        "allowPageFetch": false,
+        "allowedHosts": [
+          "github.com"
+        ],
+        "license": "CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/). Text adapted from official release notes; retain attribution and share adapted content under the same license.",
+        "attribution": "OWASP MASVS contributors",
+        "licenseUrl": "https://github.com/OWASP/masvs/blob/master/License.md"
+      }
+    },
+    {
+      "id": "research-owasp-api-releases",
+      "name": "OWASP · API Security repository publications",
+      "url": "https://owasp.org/API-Security/",
+      "feedUrls": [
+        "https://github.com/OWASP/API-Security/releases.atom"
+      ],
+      "format": "atom",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 10,
+      "retentionDays": 3650,
+      "keywordFilter": false,
+      "description": "Original repository publications; versions and prerelease labels are preserved.",
+      "learning": {
+        "kind": "release",
+        "domains": [
+          "api"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "OWASP API Security repository"
+      },
+      "watchRelease": true,
+      "articlePolicy": {
+        "allowFullText": false
+      }
+    },
+    {
+      "id": "research-owasp-genai",
+      "name": "OWASP · GenAI Security Project",
+      "url": "https://genai.owasp.org/",
+      "feedUrls": [
+        "https://genai.owasp.org/feed/"
+      ],
+      "format": "rss",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 20,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Original security research and project updates for practitioner study. Source claims remain attributed.",
+      "learning": {
+        "kind": "project-update",
+        "domains": [
+          "ai"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "OWASP GenAI"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "learningFilter": true
+    },
+    {
+      "id": "research-portswigger",
+      "name": "PortSwigger · Research",
+      "url": "https://portswigger.net/research",
+      "feedUrls": [
+        "https://portswigger.net/research/rss"
+      ],
+      "format": "rss",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 20,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Original security research and project updates for practitioner study. Source claims remain attributed.",
+      "learning": {
+        "kind": "research",
+        "domains": [
+          "web",
+          "api"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "PortSwigger Research"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      }
+    },
+    {
+      "id": "research-projectzero",
+      "name": "Google · Project Zero",
+      "url": "https://projectzero.google/",
+      "feedUrls": [
+        "https://projectzero.google/feed.xml"
+      ],
+      "format": "atom",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 20,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Original security research and project updates for practitioner study. Source claims remain attributed.",
+      "learning": {
+        "kind": "research",
+        "domains": [
+          "general"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "Project Zero"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      }
+    },
+    {
+      "id": "research-mitre",
+      "name": "MITRE · ATT&CK STIX releases",
+      "url": "https://attack.mitre.org/",
+      "feedUrls": [
+        "https://github.com/mitre-attack/attack-stix-data/releases.atom"
+      ],
+      "format": "atom",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 10,
+      "retentionDays": 3650,
+      "keywordFilter": false,
+      "description": "Original repository publications; versions and prerelease labels are preserved.",
+      "learning": {
+        "kind": "release",
+        "domains": [
+          "detection"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "MITRE ATT&CK data"
+      },
+      "watchRelease": true,
+      "articlePolicy": {
+        "allowFullText": false
+      }
+    },
+    {
+      "id": "research-trailofbits",
+      "name": "Trail of Bits · Research",
+      "url": "https://blog.trailofbits.com/",
+      "feedUrls": [
+        "https://blog.trailofbits.com/index.xml"
+      ],
+      "format": "rss",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 20,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Original security research and project updates for practitioner study. Source claims remain attributed.",
+      "learning": {
+        "kind": "research",
+        "domains": [
+          "general"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "Trail of Bits"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "learningFilter": true
+    },
+    {
+      "id": "research-specterops",
+      "name": "SpecterOps · Research",
+      "url": "https://specterops.io/blog/",
+      "feedUrls": [
+        "https://specterops.io/feed/"
+      ],
+      "format": "rss",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 20,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Original security research and project updates for practitioner study. Source claims remain attributed.",
+      "learning": {
+        "kind": "research",
+        "domains": [
+          "identity",
+          "detection"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "SpecterOps"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "learningFilter": true
+    },
+    {
+      "id": "research-bishopfox",
+      "name": "Bishop Fox · Research",
+      "url": "https://bishopfox.com/blog",
+      "feedUrls": [
+        "https://bishopfox.com/feeds/blog.rss"
+      ],
+      "format": "rss",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 20,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Original security research and project updates for practitioner study. Source claims remain attributed.",
+      "learning": {
+        "kind": "research",
+        "domains": [
+          "general"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "Bishop Fox"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "learningFilter": true
+    },
+    {
+      "id": "research-juice-shop",
+      "name": "OWASP · Juice Shop lab releases",
+      "url": "https://owasp.org/www-project-juice-shop/",
+      "feedUrls": [
+        "https://github.com/juice-shop/juice-shop/releases.atom"
+      ],
+      "format": "atom",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 5,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Official practice-lab release notes. Use the project in an isolated authorized lab; prerelease labels are preserved.",
+      "learning": {
+        "kind": "tool",
+        "domains": [
+          "web",
+          "api"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "OWASP Juice Shop"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      }
+    },
+    {
+      "id": "research-crapi",
+      "name": "OWASP · crAPI lab releases",
+      "url": "https://owasp.org/www-project-crapi/",
+      "feedUrls": [
+        "https://github.com/OWASP/crAPI/releases.atom"
+      ],
+      "format": "atom",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 5,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Official practice-lab release notes. Use the project in an isolated authorized lab; prerelease labels are preserved.",
+      "learning": {
+        "kind": "tool",
+        "domains": [
+          "api"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "OWASP crAPI"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      }
+    },
+    {
+      "id": "research-zap-blog",
+      "name": "ZAP · Testing techniques",
+      "url": "https://www.zaproxy.org/blog/",
+      "feedUrls": [
+        "https://www.zaproxy.org/blog/index.xml"
+      ],
+      "format": "rss",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 18,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Original practitioner research and testing guidance. Technical subject filtering excludes unrelated business and promotional posts; original language and source claims are preserved.",
+      "learning": {
+        "kind": "guide",
+        "domains": [
+          "web",
+          "api"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "ZAP testing guidance"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "learningFilter": true
+    },
+    {
+      "id": "research-doyensec",
+      "name": "Doyensec · Security research",
+      "url": "https://blog.doyensec.com/",
+      "feedUrls": [
+        "https://blog.doyensec.com/atom.xml"
+      ],
+      "format": "atom",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 18,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Original practitioner research and testing guidance. Technical subject filtering excludes unrelated business and promotional posts; original language and source claims are preserved.",
+      "learning": {
+        "kind": "research",
+        "domains": [
+          "general"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "Doyensec research"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "learningFilter": true
+    },
+    {
+      "id": "research-microsoft-ti",
+      "name": "Microsoft · Threat intelligence",
+      "url": "https://www.microsoft.com/en-us/security/blog/topic/threat-intelligence/",
+      "feedUrls": [
+        "https://www.microsoft.com/en-us/security/blog/topic/threat-intelligence/feed/"
+      ],
+      "format": "rss",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 18,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Original practitioner research and testing guidance. Technical subject filtering excludes unrelated business and promotional posts; original language and source claims are preserved.",
+      "learning": {
+        "kind": "research",
+        "domains": [
+          "identity",
+          "detection"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "Microsoft Threat Intelligence"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "learningFilter": true
+    },
+    {
+      "id": "research-checkpoint",
+      "name": "Check Point · Research",
+      "url": "https://research.checkpoint.com/",
+      "feedUrls": [
+        "https://research.checkpoint.com/feed/"
+      ],
+      "format": "rss",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 18,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Original practitioner research and testing guidance. Technical subject filtering excludes unrelated business and promotional posts; original language and source claims are preserved.",
+      "learning": {
+        "kind": "research",
+        "domains": [
+          "general"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "Check Point Research"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      },
+      "learningFilter": true
+    },
+    {
+      "id": "research-zap-releases",
+      "name": "ZAP · Tool releases",
+      "url": "https://www.zaproxy.org/",
+      "feedUrls": [
+        "https://github.com/zaproxy/zaproxy/releases.atom"
+      ],
+      "format": "atom",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 6,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Official tool and rule releases for controlled testing and defensive validation. Release notes retain their original publication or update date.",
+      "learning": {
+        "kind": "tool",
+        "domains": [
+          "web",
+          "api"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "ZAP"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      }
+    },
+    {
+      "id": "research-sigma",
+      "name": "SigmaHQ · Detection rule releases",
+      "url": "https://sigmahq.io/",
+      "feedUrls": [
+        "https://github.com/SigmaHQ/sigma/releases.atom"
+      ],
+      "format": "atom",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 6,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Official tool and rule releases for controlled testing and defensive validation. Release notes retain their original publication or update date.",
+      "learning": {
+        "kind": "tool",
+        "domains": [
+          "detection"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "Sigma detection rules"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      }
+    },
+    {
+      "id": "research-garak",
+      "name": "NVIDIA · garak releases",
+      "url": "https://garak.ai/",
+      "feedUrls": [
+        "https://github.com/NVIDIA/garak/releases.atom"
+      ],
+      "format": "atom",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 6,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Official tool and rule releases for controlled testing and defensive validation. Release notes retain their original publication or update date.",
+      "learning": {
+        "kind": "tool",
+        "domains": [
+          "ai"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "garak"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      }
+    },
+    {
+      "id": "research-mobsf",
+      "name": "MobSF · Mobile testing releases",
+      "url": "https://mobsf.github.io/",
+      "feedUrls": [
+        "https://github.com/MobSF/Mobile-Security-Framework-MobSF/releases.atom"
+      ],
+      "format": "atom",
+      "group": "research",
+      "stream": "news",
+      "kind": "primary",
+      "sourceType": "security",
+      "maxItems": 6,
+      "retentionDays": 365,
+      "keywordFilter": false,
+      "description": "Official tool and rule releases for controlled testing and defensive validation. Release notes retain their original publication or update date.",
+      "learning": {
+        "kind": "tool",
+        "domains": [
+          "mobile"
+        ],
+        "perspectives": [
+          "offensive",
+          "defensive"
+        ],
+        "project": "Mobile Security Framework"
+      },
+      "watchRelease": false,
+      "articlePolicy": {
+        "allowFullText": false
+      }
+    }
+  ],
+  "watchPages": [
+    {
+      "id": "watch-owasp-web",
+      "name": "OWASP Web Top 10",
+      "url": "https://top10.owasp.org/",
+      "domains": [
+        "web"
+      ],
+      "adapter": "web-top10",
+      "allowedHosts": [
+        "top10.owasp.org",
+        "owasp.org"
+      ]
+    },
+    {
+      "id": "watch-owasp-api",
+      "name": "OWASP API Security Top 10",
+      "url": "https://api-security.owasp.org/",
+      "domains": [
+        "api"
+      ],
+      "adapter": "api-top10",
+      "allowedHosts": [
+        "api-security.owasp.org",
+        "owasp.org"
+      ]
+    },
+    {
+      "id": "watch-owasp-mobile",
+      "name": "OWASP Mobile Top 10",
+      "url": "https://owasp.org/projects/mobile-top-10",
+      "domains": [
+        "mobile"
+      ],
+      "adapter": "mobile-top10",
+      "allowedHosts": [
+        "owasp.org"
+      ]
+    },
+    {
+      "id": "watch-owasp-llm",
+      "name": "OWASP LLM / GenAI Top 10",
+      "url": "https://genai.owasp.org/llm-top-10/",
+      "domains": [
+        "ai"
+      ],
+      "adapter": "llm-top10",
+      "allowedHosts": [
+        "genai.owasp.org"
+      ]
+    },
+    {
+      "id": "watch-owasp-agentic",
+      "name": "OWASP Agentic Applications Top 10",
+      "url": "https://genai.owasp.org/initiatives/agentic-security-initiative/",
+      "domains": [
+        "ai"
+      ],
+      "adapter": "agentic-top10",
+      "allowedHosts": [
+        "genai.owasp.org"
+      ]
+    },
+    {
+      "id": "watch-owasp-aitg",
+      "name": "OWASP AI Testing Guide",
+      "url": "https://owasp.org/projects/ai-testing-guide",
+      "domains": [
+        "ai"
+      ],
+      "adapter": "ai-testing",
+      "allowedHosts": [
+        "owasp.org"
+      ]
+    }
+  ]
+}

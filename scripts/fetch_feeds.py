@@ -126,11 +126,16 @@ BASE_SOURCES = (
 try:
     from .source_catalog import CATALOG_PATH, classify_source, load_sources, matched_keywords, news_relevance, record_news_relevance
     from .article_content import ingest_feed_content, fetch_public
+    from .research_sources import (RESEARCH_PATH, annotate_research_record, collect_research_watches,
+                                   load_research_catalogue, research_subject_matches, watch_content_fingerprint)
 except ImportError:
     from source_catalog import CATALOG_PATH, classify_source, load_sources, matched_keywords, news_relevance, record_news_relevance
     from article_content import ingest_feed_content, fetch_public
+    from research_sources import (RESEARCH_PATH, annotate_research_record, collect_research_watches,
+                                  load_research_catalogue, research_subject_matches, watch_content_fingerprint)
 
-SOURCES = load_sources(BASE_SOURCES)
+RESEARCH_SOURCES, RESEARCH_WATCHES = load_research_catalogue()
+SOURCES = load_sources(BASE_SOURCES) + RESEARCH_SOURCES
 
 
 class PlainText(HTMLParser):
@@ -313,6 +318,8 @@ def annotate_news_record(event, source=None):
     used by content_fingerprint(). Broader publisher updates remain available in
     Newsletters; Newsboard uses this explicit article-level decision.
     """
+    if source and source.get("group") == "research":
+        return annotate_research_record(event, source)
     if event.get("stream") != "news" and event.get("category") != "News":
         return event
     updated = dict(event)
@@ -323,7 +330,7 @@ def annotate_news_record(event, source=None):
 
 
 def _outside_newsboard(event):
-    return ((event.get("stream") == "news" or event.get("category") == "News") and
+    return (not event.get("learning") and (event.get("stream") == "news" or event.get("category") == "News") and
             not event.get("newsRelevance", {}).get("relevant", False))
 
 
@@ -398,7 +405,7 @@ def feed_event(source, title, body, url, published, updated=None):
         raise ValueError("Incomplete feed entry")
     if update < date:
         update = date
-    if source.get("group") in {"news", "newsboard"} or source.get("stream") == "news":
+    if source.get("group") in {"news", "newsboard", "research"} or source.get("stream") == "news":
         return news_event(source, title, full_body, url, date, update)
     if not body:
         raise ValueError("Incomplete advisory description")
@@ -445,6 +452,8 @@ def security_publication(title, body, url=""):
 
 
 def feed_matches(source, title, body, link):
+    if not research_subject_matches(source, title, text(body, 2400)):
+        return False
     if source.get("cyberHeadlinesOnly") and not cyber_headline(title):
         return False
     if source.get("securityOnly") and not security_publication(title, body, link):
@@ -491,7 +500,14 @@ def parse_rss(payload, source, limit=10):
     for item in items:
         try:
             title = text(field(item, "title"), 220)
-            link = field(item, "link")
+            raw_link = field(item, "link")
+            # A publisher may use relative permalinks in its own RSS feed.
+            # Resolve against the configured homepage, then apply the same
+            # safe URL validation used for absolute links.
+            raw_link = raw_link.strip() if isinstance(raw_link, str) else ""
+            if not raw_link or any(ord(character) < 33 or ord(character) == 127 for character in raw_link) or "\\" in raw_link:
+                continue
+            link = urljoin(source.get("url", ""), raw_link)
             date = field(item, "pubDate") or item.findtext("{http://purl.org/dc/elements/1.1/}date")
             summary = field(item, "description") or ""
             content = item.findtext("{http://purl.org/rss/1.0/modules/content/}encoded") or ""
@@ -510,7 +526,7 @@ def parse_rss(payload, source, limit=10):
             events.append(attach_feed_article(event, source, summary, content, item))
         except (ValueError, TypeError, OverflowError):
             continue
-    healthy_filtered = ((source.get("cyberHeadlinesOnly") or source.get("keywordFilter") or source.get("securityOnly"))
+    healthy_filtered = ((source.get("cyberHeadlinesOnly") or source.get("keywordFilter") or source.get("securityOnly") or source.get("learningFilter"))
                         and (valid_items or not items))
     if not events and not healthy_filtered:
         raise ValueError("RSS feed returned no usable dated records")
@@ -546,6 +562,7 @@ def parse_atom(payload, source, limit=8):
                                       if i.attrib.get("rel", "alternate") == "alternate"), None)
         published = item.findtext("a:published", "", ATOM)
         updated = item.findtext("a:updated", "", ATOM)
+        date_basis = "source-published" if published else "source-updated"
         if not published and source["id"] != "php":
             published = updated
         try:
@@ -556,12 +573,16 @@ def parse_atom(payload, source, limit=8):
             if not feed_matches(source, title, body, link):
                 continue
             event = feed_event(source, title, body, link, published, updated)
+            if source.get("group") == "research":
+                event["learning"]["dateBasis"] = date_basis
+                if date_basis == "source-updated":
+                    event["timeline"] = [{"date": event["updatedAt"], "title": "Source feed updated", "description": "The source feed provides an update timestamp; a separate original-publication date is not supplied."}]
             content = body if item.find("a:content", ATOM) is not None else ""
             summary = item.findtext("a:summary", "", ATOM) or (body if not content else "")
             events.append(attach_feed_article(event, source, summary, content, item))
         except (ValueError, TypeError, OverflowError):
             continue
-    healthy_filtered = ((source.get("keywordFilter") or source.get("securityOnly")) and (valid_items or not items))
+    healthy_filtered = ((source.get("keywordFilter") or source.get("securityOnly") or source.get("learningFilter")) and (valid_items or not items))
     if not events and not healthy_filtered:
         raise ValueError("Atom feed returned no usable dated records")
     return prioritize_records(events, limit)
@@ -955,6 +976,11 @@ def retain_source_records(source, events, previous, timestamp):
         if event.get("sourceId") != source["id"] or str(event.get("publishedAt", "")) < cutoff or not event.get("sources"):
             continue
         event = annotate_news_record(event, source)
+        if source.get("group") == "research":
+            article = event.get("article") or {}
+            lead = " ".join(article.get("paragraphs", [])) or event.get("description", "")
+            if not research_subject_matches(source, event.get("title", ""), lead):
+                continue
         if source.get("keywordFilter"):
             if event.get("stream") == "news" or event.get("category") == "News":
                 if _outside_newsboard(event):
@@ -1006,6 +1032,13 @@ def collect_source(source, previous, timestamp, fetcher=fetch_bytes):
                 events = parse_feed(payload, source, limit=limit)
             else:
                 events = parse_atom(payload, source, limit=limit)
+            # Only freshly parsed feed content receives this successful check
+            # time. Records retained below keep their original content times.
+            for event in events:
+                article = event.get("article")
+                if isinstance(article, dict) and article.get("origin") == "feed":
+                    article["fetchedAt"] = timestamp
+                    article["lastAttemptAt"] = timestamp
             if source.get("cyberHeadlinesOnly"):
                 events = retain_newspaper_headlines(source, events, previous, timestamp)
             elif source.get("retentionDays") or source.get("group") in {"news", "newsboard"}:
@@ -1015,6 +1048,7 @@ def collect_source(source, previous, timestamp, fetcher=fetch_bytes):
                             "kind": source.get("kind", "primary"), "group": source.get("group", "intelligence"),
                             "sourceType": classify_source(source),
                             "description": source.get("description", "Official security intelligence feed."),
+                            **({"learning": source["learning"]} if source.get("group") == "research" else {}),
                             "status": "ok", "lastSuccessAt": timestamp,
                             "lastAttemptAt": timestamp, "itemCount": len(events), "error": None}
         except (OSError, ValueError, TypeError, ET.ParseError) as error:
@@ -1039,6 +1073,7 @@ def collect_source(source, previous, timestamp, fetcher=fetch_bytes):
                     "kind": source.get("kind", "primary"), "group": source.get("group", "intelligence"),
                     "sourceType": classify_source(source),
                     "description": source.get("description", "Official security intelligence feed."),
+                    **({"learning": source["learning"]} if source.get("group") == "research" else {}),
                     "status": "error", "lastSuccessAt": prior.get("lastSuccessAt"),
                     "lastAttemptAt": timestamp, "itemCount": len(events), "error": message}
 
@@ -1056,7 +1091,7 @@ def content_fingerprint(events):
     for event in sorted(events, key=lambda event: event["id"]):
         record = dict(event)
         if isinstance(record.get("article"), dict):
-            record["article"] = {key: value for key, value in record["article"].items() if key != "fetchedAt"}
+            record["article"] = {key: value for key, value in record["article"].items() if key not in {"fetchedAt", "lastAttemptAt"}}
         normalized.append(record)
     return sha256(json.dumps(normalized, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
@@ -1078,7 +1113,7 @@ def fair_limit(events, limit):
     return sorted(selected, key=lambda item: (item["updatedAt"], item["publishedAt"], item["id"]), reverse=True)
 
 
-def assemble(results, curated, timestamp, limit, previous=None, bangladesh_curated=None, source_configs=None):
+def assemble(results, curated, timestamp, limit, previous=None, bangladesh_curated=None, source_configs=None, research_watch=None):
     previous = previous or {}
     events, sources = [], []
     for group, source in results:
@@ -1108,7 +1143,7 @@ def assemble(results, curated, timestamp, limit, previous=None, bangladesh_curat
             # Prefer richer reviewed context to an auto-collected copy of that
             # same article. Keep independent publications and separate views.
             for event_id, candidate in list(by_id.items()):
-                if candidate["sourceId"] in {"cisa-kev", "curated", "bangladesh-curated"} or not candidate.get("sources"):
+                if candidate["sourceId"] in {"cisa-kev", "curated", "bangladesh-curated"} or candidate.get("learning") or not candidate.get("sources"):
                     continue
                 if candidate.get("stream", "intelligence") == stream and canonical_url(candidate["sources"][0]["url"]) in evidence_urls:
                     del by_id[event_id]
@@ -1119,7 +1154,7 @@ def assemble(results, curated, timestamp, limit, previous=None, bangladesh_curat
     articles, deduplicated = set(), []
     for event in by_id.values():
         if event.get("stream") == "news" and event.get("sources"):
-            article_url = canonical_url(event["sources"][0]["url"])
+            article_url = ("research" if event.get("learning") else "news", canonical_url(event["sources"][0]["url"]))
             if article_url in articles:
                 continue
             articles.add(article_url)
@@ -1128,10 +1163,23 @@ def assemble(results, curated, timestamp, limit, previous=None, bangladesh_curat
     events = fair_limit(assessed, limit)
     for source in sources:
         source["itemCount"] = sum(event["sourceId"] == source["id"] for event in events)
+    try:
+        from .source_health import append_collection_history
+    except ImportError:
+        from source_health import append_collection_history
+    prior_sources = {source["id"]: source for source in previous.get("sources", [])}
+    for source in sources:
+        if source.get("kind") != "curated":
+            source["collectionHistory"] = append_collection_history(source, prior_sources.get(source["id"]))
     changed = content_fingerprint(events) != content_fingerprint(previous.get("events", []))
+    if research_watch is not None:
+        changed = changed or watch_content_fingerprint(research_watch) != watch_content_fingerprint(previous.get("researchWatch", []))
     database_updated = timestamp if changed else previous.get("databaseUpdatedAt") or previous.get("generatedAt") or timestamp
-    return {"schemaVersion": 1, "generatedAt": timestamp, "databaseUpdatedAt": database_updated,
-            "lastCheckedAt": timestamp, "sources": sources, "events": events}
+    snapshot = {"schemaVersion": 1, "generatedAt": timestamp, "databaseUpdatedAt": database_updated,
+                "lastCheckedAt": timestamp, "sources": sources, "events": events}
+    if research_watch is not None:
+        snapshot["researchWatch"] = research_watch
+    return snapshot
 
 
 def write_atomic(path, data):
@@ -1156,10 +1204,12 @@ def main():
     parser.add_argument("--bangladesh-curated", type=Path, default=ROOT / "data/bangladesh-curated.json")
     parser.add_argument("--limit", type=int, default=1200, help="Maximum displayed records (1–2000, default 1200)")
     parser.add_argument("--sources", type=Path, default=CATALOG_PATH, help="Local administrator source catalogue")
+    parser.add_argument("--research-sources", type=Path, default=RESEARCH_PATH, help="Local research feeds and official edition watches")
     args = parser.parse_args()
     if not 1 <= args.limit <= 2000:
         parser.error("--limit must be between 1 and 2000")
-    sources = load_sources(BASE_SOURCES, args.sources)
+    research_sources, watch_pages = load_research_catalogue(args.research_sources)
+    sources = load_sources(BASE_SOURCES, args.sources) + research_sources
     curated = read_json(args.curated, [])
     bangladesh_curated = read_json(args.bangladesh_curated, [])
     if not isinstance(curated, list) or not isinstance(bangladesh_curated, list):
@@ -1188,7 +1238,10 @@ def main():
             # can supply CVE identifiers without inventing severity/exploitation.
             article_text = " ".join(event["article"].get("paragraphs", []))
             event["cves"] = sorted(set(event.get("cves", [])) | {cve.upper() for cve in CVE.findall(article_text)})[:500]
-    snapshot = assemble(results, curated, timestamp, args.limit, previous, bangladesh_curated, source_configs=sources)
+    research_watch, watch_registries = collect_research_watches(research_sources, watch_pages, results, previous, timestamp)
+    results.extend(([], registry) for registry in watch_registries)
+    snapshot = assemble(results, curated, timestamp, args.limit, previous, bangladesh_curated, source_configs=sources,
+                        research_watch=research_watch)
     validate_snapshot(snapshot)
     if not snapshot["events"]:
         raise SystemExit("No usable records collected or retained; existing output was not changed.")

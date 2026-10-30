@@ -311,6 +311,13 @@ class ServerTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     Application(self.manager, self.static, allowed_origins=[origin])
 
+    def test_publisher_content_notices_are_available_as_plain_text(self):
+        (self.static / 'third-party-notices.txt').write_text('Original source attribution and license notices.')
+        response=self.call('/third-party-notices.txt')
+        self.assertEqual(response['code'],200)
+        self.assertIn('text/plain',response['headers']['Content-Type'])
+        self.assertIn(b'license notices',response['body'])
+
 
 if __name__ == "__main__":
     unittest.main()

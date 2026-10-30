@@ -40,6 +40,18 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.
 ```
 
+## OWASP project release feeds
+
+Attribution: the respective OWASP WSTG, ASVS, MASTG and MASVS contributors. Their official repositories identify Creative Commons Attribution-ShareAlike 4.0 International licensing:
+
+- WSTG: <https://github.com/OWASP/wstg/blob/master/LICENSE>
+- ASVS: <https://github.com/OWASP/ASVS/blob/master/LICENSE.md>
+- MASTG: <https://github.com/OWASP/mastg/blob/master/License.md>
+- MASVS: <https://github.com/OWASP/masvs/blob/master/License.md>
+- License terms: <https://creativecommons.org/licenses/by-sa/4.0/>
+
+The reader retains available release-note text from the official Atom feeds and links each original publication. HTML formatting is simplified to plain paragraphs; bounded or incomplete content is identified as partial. The collected text and adaptations remain subject to CC BY-SA 4.0. The project does not claim ownership of the original source material. These full-text settings cover the release feeds, not unrestricted scraping of all GitHub pages or embedding entire standards documents. Other image/material rights may differ; source-specific credits remain attached where supplied.
+
 ## Displaying notices on a static deployment
 
 The reader's source note carries the configured license/attribution alongside the original link. This complete notice is distributed with the project and is also available as `dist/third-party-notices.txt` in published installations. Additional full-text sources should carry their required attribution and license terms in the source policy and this notice before enabling redistribution.

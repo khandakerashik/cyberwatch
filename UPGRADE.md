@@ -1,8 +1,18 @@
-# Upgrade to CyberWatch 2.0.1
+# Upgrade to CyberWatch 3.1.0
 
-This is a complete replacement project. It preserves the existing incident feed, newsletters, Bangladesh view, watchlist, refresh API, scheduled collection and hosting options, and adds Newsboard, additional advisory sources and the article reader.
+This is a complete replacement project. It preserves the existing incident feed, newsletters, Bangladesh view, watchlist, refresh API, scheduled collection and hosting options, and adds the green portal theme, Source quality dashboard, Incident history and expanded Research Lab. The earlier Newsboard, advisory sources, reader and relevance fix remain included.
 
-## Relevance fix for an existing 2.0.0 installation
+## Upgrade the existing GitHub Pages repository
+
+This release is a complete replacement archive for `khandakerashik/cyberwatch`. Extract it and upload all contents into the existing repository root on `main`, replacing matching files and adding new files. The website URL remains `https://khandakerashik.github.io/cyberwatch/`.
+
+Include `.github`, `dist`, `data`, `scripts`, `server` and `tests`. Research Lab requires `dist/research-core.js`, `dist/research-ui.js`, `dist/portal.css`, `data/research-sources.json` and `scripts/research_sources.py` along with the updated application and validation files. Source quality and Incident history also require `dist/insights-core.js`, `dist/insights-ui.js` and `scripts/source_health.py`. Keep any custom curated records and API/CSP configuration when merging the update.
+
+Keep **Settings → Pages → Source → GitHub Actions**. The commit starts **Refresh intelligence and deploy Pages**. Wait for both `build` and `deploy`, then use Ctrl+F5 and open **Source quality**, **Incident history** and **Research Lab → Techniques library**. A manual run from Actions also starts a fresh collection. The included cron is `18,48 * * * *`, matching the existing repository's observed timing. A separate `schedule-test.yml` heartbeat can remain; it does not deploy the site.
+
+The new collector re-evaluates retained records and establishes official-watch baselines. Clearing the Actions cache is not required. Existing caches seed source history from their recorded last attempt; future checks append real observations up to 48 per channel. Existing browser watchlists keep the same key. New reading preferences, progress and notes use a separate browser-local key. A live Python installation retaining an older runtime snapshot gets Research Lab data at its next successful refresh.
+
+## Included relevance fix for an existing 2.0.0 installation
 
 Deploy the complete replacement project, preserving your runtime directory and local configuration as described below. Include the new `dist/news-relevance.js`, `dist/news-relevance-rules.js`, `data/news-relevance-rules.json` and `scripts/build_relevance_rules.py` files. Restart the Python service and hard-refresh the browser (Ctrl+F5 on Windows) so it loads the new frontend modules.
 
@@ -39,7 +49,7 @@ Rebuild/redeploy from the updated source and retain the existing persistent volu
 - The default collection budget is **1,200 records**, with a configurable maximum of **2,000**. Collection distributes a constrained budget across sources and retains bounded source history.
 - The live collector has a **300-second** deadline. The browser allows **330 seconds** for a refresh job; a failed or invalid collection preserves the previous valid snapshot.
 - Snapshots are limited to **32 MiB** in the server and browser. Individual publisher responses and reader text have separate smaller limits.
-- Full article fetching is policy-controlled, bounded and cached. Most world-news publishers start with excerpts, images where available and original links. Enabling full text requires permission for that source and its exact HTTPS host allowlist.
+- Full article fetching is policy-controlled, bounded and cached. `allowPageFetch: false` permits licensed full feed bodies without enabling publisher-page requests. Complete cached content survives temporary failures only for the same publication version and permitted source policy. Most world-news publishers start with excerpts, images where available and original links. Enabling full text requires permission for that source and its exact HTTPS host allowlist.
 - Networks requiring a trusted HTTP CONNECT proxy can set `CYBERWATCH_HTTPS_PROXY=http://approved-proxy:3128`. Direct HTTPS is the default. Proxy credentials and HTTPS/SOCKS proxy transport are not supported; TLS verification stays enabled. The proxy must enforce public destinations and its own DNS policy.
 
 ## Verify the installation

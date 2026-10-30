@@ -1,7 +1,10 @@
 /** Pure, dependency-free data handling shared by the console and its tests. */
 import { newsRelevance, normalizeNewsRelevance } from './news-relevance.js';
+import { isResearchEvent, normalizeLearning, normalizeResearchWatch } from './research-core.js';
+import { normalizeSourceChecks } from './insights-core.js';
 
 export { newsRelevance } from './news-relevance.js';
+export { isResearchEvent } from './research-core.js';
 
 export const SEVERITIES = Object.freeze(['critical', 'high', 'medium', 'low', 'unknown']);
 
@@ -11,7 +14,7 @@ const CATEGORIES = new Map([
 ]);
 const STATUSES = new Set(['investigating', 'active', 'mitigated', 'resolved', 'monitoring']);
 const BANGLADESH_SCOPES = new Set(['national-advisory', 'local-activity', 'coverage']);
-const SOURCE_GROUPS = new Set(['news', 'newsboard', 'intelligence', 'bangladesh']);
+const SOURCE_GROUPS = new Set(['news', 'newsboard', 'intelligence', 'bangladesh', 'research']);
 const SOURCE_TYPES = new Set(['mainstream', 'security', 'vendor', 'government']);
 const MAX_EVENTS = 2000;
 const TECHNICAL_FIELDS = ['affectedSystems', 'attackVector', 'prerequisites', 'detection', 'mitigation', 'limitations'];
@@ -53,6 +56,7 @@ export function eventSourceType(event) {
 }
 
 export function isNewsboardEvent(event) {
+  if (isResearchEvent(event)) return false;
   if (isNewsEvent(event)) return newsRelevance(event).relevant;
   return ['vendor', 'government'].includes(eventSourceType(event)) &&
     ['Advisory', 'Vulnerability', 'Patch'].includes(event?.category);
@@ -136,9 +140,12 @@ function normalizeArticle(value) {
   if (status === 'full' && !paragraphs.length) status = 'unavailable';
   const clipped = Array.isArray(value.paragraphs) &&
     (value.paragraphs.length > 120 || value.paragraphs.some(item => typeof item === 'string' && item.length > 4000) || value.paragraphs.reduce((total,item)=>total+(typeof item === 'string'?item.length:0),0) > 100000);
-  if (status === 'full' && clipped) status = 'excerpt';
+  if (status === 'full' && (clipped || value.truncated === true)) status = 'excerpt';
+  const reasons = new Set(['full','publisher-feed-excerpt','permission-required','publisher-restricted','robots-disallowed','extraction-failed','reader-limit','publisher-partial','headline-only','no-content','fetch-failed']);
   return {status, paragraphs, images, origin: value.origin === 'publisher' ? 'publisher' : 'feed',
-    fetchedAt: isoTimestamp(value.fetchedAt), note: clipped ? 'The available text exceeds this reader’s display limit. Open the original publication for the complete article.' : text(value.note, 2000)};
+    fetchedAt: isoTimestamp(value.fetchedAt), lastAttemptAt: isoTimestamp(value.lastAttemptAt), retained: value.retained === true,
+    truncated: clipped || value.truncated === true, availabilityReason: clipped ? 'reader-limit' : reasons.has(value.availabilityReason) ? value.availabilityReason : '',
+    note: clipped ? 'The available text exceeds this reader’s display limit. Open the original publication for the complete article.' : text(value.note, 2000)};
 }
 
 /** Build an official record link only from a complete, valid CVE identifier. */
@@ -205,6 +212,7 @@ function normalizeEvent(raw) {
     newsTopics: strings(raw.newsTopics, 30, 100),
     newsRelevance: normalizeNewsRelevance(raw.newsRelevance),
     article: normalizeArticle(raw.article),
+    learning: normalizeLearning(raw.learning),
     confidence: raw.confidence === 'confirmed' ? 'confirmed' : 'reported',
     severityBasis: text(raw.severityBasis, 4000) || 'Severity has not been independently assessed.',
     evidenceNote: text(raw.evidenceNote, 5000),
@@ -275,22 +283,29 @@ export function normalizeData(raw) {
         item.group === 'newsboard' ? 'mainstream' : /^(?:cisa|cert|cirt|bcsi)/i.test(id) ? 'government' :
         item.group === 'news' ? (item.kind === 'secondary' ? 'security' : 'vendor') : '',
       description: text(item.description, 2000),
+      learning: normalizeLearning(item.learning),
       status: ['ok', 'error', 'snapshot'].includes(item.status) ? item.status : 'snapshot',
       lastSuccessAt: isoTimestamp(item.lastSuccessAt),
       lastAttemptAt: isoTimestamp(item.lastAttemptAt),
+      collectionHistory: normalizeSourceChecks(item.collectionHistory).filter(check=>Date.parse(check.at)<=Date.parse(generatedAt)&&(!isoTimestamp(item.lastAttemptAt)||Date.parse(check.at)<=Date.parse(item.lastAttemptAt))),
       itemCount: events.filter(event => event.sourceId === id).length,
       error: text(item.error, 2000) || null,
     });
   }
   const sourceTypes = new Map(sources.map(source => [source.id, source.sourceType]));
   for (const event of events) if (!event.sourceType) event.sourceType = sourceTypes.get(event.sourceId) || eventSourceType(event);
+  const researchSources = new Map(sources.filter(source=>source.group==='research').map(source=>[source.id,source]));
+  for (const event of events) {
+    event.research = Boolean(event.learning) || researchSources.has(event.sourceId);
+    if (event.research && !event.learning) event.learning = researchSources.get(event.sourceId)?.learning || normalizeLearning({kind:'project-update',domains:['general'],perspectives:['offensive','defensive']});
+  }
   // Loading a snapshot is not a feed check. Legacy timestamps may only be
   // recovered from recorded attempts, never from the browser's current time.
   const attempts = sources.filter(source => source.kind !== 'curated' && source.lastAttemptAt)
     .map(source => source.lastAttemptAt).sort((a, b) => Date.parse(b) - Date.parse(a));
   const databaseUpdatedAt = raw.databaseUpdatedAt === undefined ? isoTimestamp(generatedAt) : isoTimestamp(raw.databaseUpdatedAt);
   const lastCheckedAt = raw.lastCheckedAt === undefined ? (attempts[0] || null) : isoTimestamp(raw.lastCheckedAt);
-  return { schemaVersion: 1, generatedAt, databaseUpdatedAt, lastCheckedAt, sources, events };
+  return { schemaVersion: 1, generatedAt, databaseUpdatedAt, lastCheckedAt, sources, events, researchWatch: normalizeResearchWatch(raw.researchWatch,{sourceIds}) };
 }
 
 /** Search, combine filters, and sort without mutating the supplied event array. */
@@ -310,6 +325,8 @@ export function filterEvents(events, {
     if (duration && timestamp < currentTime - duration) return false;
     if (severity !== 'all' && event.severity !== severity) return false;
     if (category !== 'all' && event.category !== category) return false;
+    if (view === 'research' && !isResearchEvent(event)) return false;
+    if (['feed','newsboard','newsletters','bangladesh'].includes(view) && isResearchEvent(event)) return false;
     if (view === 'feed' && isNewsEvent(event)) return false;
     if (view === 'newsletters' && !isNewsEvent(event)) return false;
     if (view === 'newsboard' && !isNewsboardEvent(event)) return false;
@@ -353,7 +370,7 @@ export function makeCSV(events) {
   const rows = [[
     'ID', 'Published at', 'Updated at', 'Organization', 'Title', 'Category', 'Severity',
     'Severity basis', 'Status', 'Confidence', 'Exploitation reported', 'CVEs', 'Summary',
-    'Impact', 'Recommendations', 'Sources', 'Stream', 'Geography', 'Bangladesh scope',
+    'Impact', 'Recommendations', 'Sources', 'Stream', 'Geography', 'Bangladesh scope', 'Research type', 'Research domains', 'Research perspectives', 'Date basis',
   ]];
   for (const event of events || []) {
     rows.push([
@@ -362,7 +379,8 @@ export function makeCSV(events) {
       (event.cves || []).join('; '), event.summary,
       (event.impact || []).join('\n'), (event.recommendations || []).join('\n'),
       (event.sources || []).map(source => safeURL(source.url)).filter(Boolean).join('\n'),
-      isNewsEvent(event) ? 'news' : 'intelligence', (event.geography || []).join('; '), event.bangladeshScope || '',
+      isResearchEvent(event) ? 'research' : isNewsEvent(event) ? 'news' : 'intelligence', (event.geography || []).join('; '), event.bangladeshScope || '',
+      event.learning?.kind || '', (event.learning?.domains || []).join('; '), (event.learning?.perspectives || []).join('; '), event.learning?.dateBasis || '',
     ]);
   }
   return '\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
@@ -374,14 +392,15 @@ export function makeBrief(event, channel = null) {
   const lines = [
     event.title,
     `${event.organization} · ${event.category}`,
-    `Published: ${event.publishedAt}`,
+    `${event.learning?.dateBasis==='source-updated'?'Source updated':'Published'}: ${event.publishedAt}`,
     `Record updated: ${event.updatedAt || event.publishedAt}`,
     `Severity: ${severity}`,
     `Severity basis: ${event.severityBasis || 'Not independently assessed.'}`,
     `Status: ${event.status} · Evidence: ${event.confidence}`,
     `Exploitation: ${event.exploited ? 'Reported in source material' : 'Not established by this record'}`,
   ];
-  if (isNewsEvent(event)) lines.push('Publication stream: Newsletter / news');
+  if (isResearchEvent(event)) lines.push('Publication stream: Research Lab',`Research type: ${event.learning?.kind || 'project-update'}`,`Domains: ${(event.learning?.domains || []).join(', ')}`,`Perspectives: ${(event.learning?.perspectives || []).join(', ')}`);
+  else if (isNewsEvent(event)) lines.push('Publication stream: Newsletter / news');
   if (event.geography?.length) lines.push(`${event.bangladeshScope === 'coverage' ? 'Coverage / publisher region' : 'Geography'}: ${event.geography.join(', ')}`);
   if (BANGLADESH_SCOPES.has(event.bangladeshScope)) {
     const scope = { 'national-advisory': 'National advisory', 'local-activity': 'Local cyber activity', coverage: 'Bangladesh coverage' }[event.bangladeshScope];

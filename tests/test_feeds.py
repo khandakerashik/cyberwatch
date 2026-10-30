@@ -41,6 +41,26 @@ class FeedTests(unittest.TestCase):
     def test_cest_date_is_converted_correctly(self):
         self.assertEqual(iso("Thu, 22 Oct 2026 11:14:22 CEST"), "2026-10-22T09:14:22Z")
 
+    def test_relative_publisher_rss_links_resolve_without_allowing_unsafe_schemes(self):
+        source = dict(self.source("the-hacker-news"), url="https://publisher.example.org/blog/")
+        def payload(link):
+            return f'<rss><channel><item><title>Security testing guide</title><link>{link}</link><description>A guide to security testing.</description><pubDate>Thu, 22 Oct 2026 11:14:22 GMT</pubDate></item></channel></rss>'.encode()
+        event = parse_rss(payload('/blog/guide/'), source)[0]
+        self.assertEqual(event['sources'][0]['url'], 'https://publisher.example.org/blog/guide/')
+        for link in ('javascript:alert(1)', 'data:text/html,unsafe', ''):
+            with self.subTest(link=link), self.assertRaises(ValueError):
+                parse_rss(payload(link), source)
+
+    def test_article_check_times_do_not_falsely_advance_content_update(self):
+        source = self.source("the-hacker-news")
+        payload = b'<rss><channel><item><title>Cybersecurity breach report</title><link>https://example.com/report</link><description>A publisher description.</description><pubDate>Thu, 22 Oct 2026 11:14:22 GMT</pubDate></item></channel></rss>'
+        first_time, next_time = '2026-10-22T12:00:00Z', '2026-10-22T12:30:00Z'
+        first = assemble([collect_source(source, {}, first_time, fetcher=lambda _:payload)], [], first_time, 100)
+        second = assemble([collect_source(source, first, next_time, fetcher=lambda _:payload)], [], next_time, 100, previous=first)
+        self.assertEqual(second['databaseUpdatedAt'], first_time)
+        self.assertEqual(second['events'][0]['article']['lastAttemptAt'], next_time)
+        self.assertEqual(len(second['sources'][0]['collectionHistory']), 2)
+
     def test_xml_entities_and_missing_dates_cannot_enter_data(self):
         with self.assertRaises(ValueError):
             parse_rss(b'<!DOCTYPE rss [<!ENTITY x "unsafe">]><rss/>', SOURCES[1])

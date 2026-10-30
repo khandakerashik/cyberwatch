@@ -54,11 +54,14 @@ class NewsSchemaTests(unittest.TestCase):
 
     def test_larger_news_snapshot_and_new_source_group_are_valid(self):
         data = json.loads((ROOT / "dist/data/incidents.json").read_text())
-        base = deepcopy(data["events"][0])
+        base = deepcopy(next(event for event in data["events"] if not event.get("learning")))
         source = deepcopy(next(item for item in data["sources"] if item["id"] == base["sourceId"]))
         source.update(group="newsboard", sourceType="mainstream", itemCount=501)
         data["sources"] = [source]
         data["events"] = [dict(base, id=f"world-report-{i}", sourceType="mainstream") for i in range(501)]
+        # This fixture constructs a different source registry; edition watches
+        # from the bundled snapshot cannot reference that artificial registry.
+        data["researchWatch"] = []
         validate_snapshot(data)
         data["events"] += [dict(base, id=f"world-extra-{i}") for i in range(1500)]
         with self.assertRaises(ValueError):

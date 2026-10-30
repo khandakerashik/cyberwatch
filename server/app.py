@@ -407,12 +407,12 @@ class Application:
             target = (self.static_dir / (path.lstrip("/") or "index.html")).resolve()
             if not target.is_relative_to(self.static_dir) or not target.is_file():
                 raise ValueError("Not a static file")
-            if target.suffix.lower() not in {".html", ".css", ".js", ".json", ".png", ".svg", ".ico", ".zip"}:
+            if target.suffix.lower() not in {".html", ".css", ".js", ".json", ".png", ".svg", ".ico", ".zip", ".txt"}:
                 raise ValueError("Not a public asset")
             content_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
             if target.suffix == ".js":
                 content_type = "text/javascript"
-            if target.suffix in {".html", ".css", ".js", ".json", ".svg"}:
+            if target.suffix in {".html", ".css", ".js", ".json", ".svg", ".txt"}:
                 content_type += "; charset=utf-8"
             return respond(200, target.read_bytes(), content_type, [("Cache-Control", "no-cache")])
         except (OSError, ValueError, UnicodeError):

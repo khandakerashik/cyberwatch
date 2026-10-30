@@ -1,26 +1,29 @@
-# CyberWatch — Cyber Incident Console
+# CyberWatch — Cybersecurity Intelligence & Research
 
-A terminal-inspired threat intelligence console for incident reports, exploited vulnerabilities, security advisories, patch updates, publisher news, and Bangladesh-specific cyber activity. Open an event to read its description, severity rationale, impact, recommended actions, technical context, timeline, and original sources.
+A professional cybersecurity portal for incident reports, exploited vulnerabilities, security advisories, worldwide news, original research, standards monitoring and practical learning. Open an event to read its description, severity rationale, impact, recommended actions, technical context, timeline, and original sources.
 
-**Version 2.0.1** adds a separate **Newsboard** under **WORKSPACE**, keyword-filtered international news, official software security advisories, and an article reader with publisher images and explicit content-availability labels. The always-on Python/Waitress service checks publishers every **30 minutes** and starts an on-demand check when a visitor selects **Refresh**. The HTML, CSS, and JavaScript console and its refresh API can run together on one host. No database service or publisher API key is required. See [UPGRADE.md](UPGRADE.md) for an existing installation.
+**Version 3.1.0** adds a consistent green accent over a dark theme, a **Source quality** dashboard, a date-based **Incident history** page and a **Techniques library** with 24 practical study cards. Research Lab now includes 22 primary feed channels plus six official edition monitors. The article collector preserves more permitted content, labels incomplete excerpts clearly and retains complete same-version text through temporary fetch failures. See [INSIGHTS_GUIDE.md](INSIGHTS_GUIDE.md), [RESEARCH_GUIDE.md](RESEARCH_GUIDE.md) and [ROADMAP.md](ROADMAP.md). The Python/Waitress service checks publishers every **30 minutes** and supports on-demand **Refresh**. GitHub Pages publishes the same frontend from scheduled snapshots. No database service or publisher API key is required. See [UPGRADE.md](UPGRADE.md) for an existing installation.
 
 GitHub Pages remains available as a static deployment: GitHub Actions collects and publishes a snapshot on a best-effort 30-minute schedule. Pages can also connect to the live service to provide on-demand collection. The deployment sections below explain each setup.
 
-## Console views
+## Portal views
 
 - **Incident feed:** incident reports, vulnerabilities, advisories, and patches, with search, severity/date filters, detailed assessments, and source evidence.
 - **Newsboard:** a worldwide view combining relevant world-press coverage, specialist cybersecurity reporting, and official advisories. Switch between **All coverage**, **World press**, **Cybersecurity**, and **Advisories**; filter by topic, publisher, publication date, and search terms. Image cards open the **Article** reader. Mainstream news remains attributed reporting with an unknown severity unless a separate reviewed assessment exists.
+- **Research Lab:** Standards Watch, Research Feed, Techniques library and Learning Paths. Follow official editions and repository publications, distinguish drafts and source update dates, filter by domain/source/perspective, save research and mark items reviewed. Six study plans pair offensive practice with defensive validation and include local checklists and notes.
 - **Newsletters:** public updates from Cybernews, BleepingComputer, SecurityWeek, Help Net Security, The Hacker News, Palo Alto Networks Unit 42, CrowdStrike, PHP, Microsoft Security, Cisco Talos, and Bangladesh publishers. Browse by publisher and open an item for its available feed excerpt and original article link. Cybernews entries show the headline, publication date, attribution, and link. This view aggregates public RSS/Atom and publisher-index content; it does not subscribe users to emails or read an inbox.
 - **Bangladesh:** national advisories, reported local cyber activity, and defensive programmes from BGD e-GOV CIRT, Bangladesh Cyber Security Intelligence, and reviewed records, plus English newspaper headlines containing “cyber”. Newspaper sources include The Daily Star, Dhaka Tribune, The Business Standard, and The Financial Express. Use **News coverage** and the publisher filter to browse newspaper updates. Scope labels distinguish publisher coverage from national advisories and reported local activity.
+- **Source quality:** actual collection outcomes, overdue checks, up to 48 recorded checks per source, retained record counts, reader coverage, source inspection and CSV export. No invented credibility score.
+- **Incident history:** an interactive calendar for documented milestones and publication dates, with major/all-record scopes, search, type filters, original evidence and CSV export.
 - **Watchlist and Sources:** save records in this browser and inspect each publisher's latest attempt, last successful collection, and any collection error.
 
 The freshness display separates a changed database from a collection attempt and from this browser's snapshot retrieval. Exact times are displayed in **Asia/Dhaka (BDT, UTC+06:00)**. The stored source dates retain their original precision; a date-only publication is not given an invented time.
 
 ## Responsive interface
 
-CyberWatch uses a dark cyber-tech interface with a fine background grid, restrained mint accents, terminal-inspired panels, and an eagle logo. The interface reflows from compact phones to wide desktop monitors:
+CyberWatch uses a dark charcoal visual system with green interaction accents, a subtle background grid, a decorative orbital mark, crisp cards and an eagle logo. The interface reflows from compact phones to wide desktop monitors:
 
-- **Phones:** full-width content, six labeled navigation buttons in a horizontally scrollable bottom bar, stacked event cards, wrapping filters, and safe-area spacing for device cutouts and home indicators.
+- **Phones:** full-width content, nine labeled navigation buttons in a horizontally scrollable bottom bar, stacked event cards, wrapping filters, and safe-area spacing for device cutouts and home indicators.
 - **Tablets:** a compact icon sidebar, flexible card grids, and readable search and filter controls.
 - **Desktop and wide screens:** a full sidebar, incident table, and adjacent intelligence panels within a bounded content width.
 - **Event details:** the heading and content share a scrollable area, while the close controls remain available, including on short landscape displays.
@@ -38,6 +41,14 @@ The detail tabs are **Overview**, **Article**, **Timeline**, and **Sources & evi
 - **Publisher context** for news: reported relevance, follow-up guidance, original article links, and evidence limits. Bangladesh newspaper coverage describes the publisher channel, not necessarily the location of an attack or victim.
 
 **Copy brief** includes the available technical context, evidence qualifications, original sources, CVE links, and source-channel freshness. The same detail layout works for automated records; where the collected source does not supply reviewed technical information, the panel says so instead of creating it.
+
+## Research Lab
+
+The administrator-managed `data/research-sources.json` adds 22 primary feed channels and six official edition-page monitors. Twelve project watch cards cover the edition pages and selected repository publications. The collector shares the normal scheduled/live refresh, source status, safe network layer, bounded retention and atomic publication path.
+
+Research items carry explicit learning metadata and stay out of the incident/news views. The Techniques library provides 24 original learning cards with a lab method, defensive validation, common mistakes and primary references. Source following, reviewed status, study progress and notes are browser-local. Original publication dates, source update dates, first observation and later marker changes are kept distinct. Initial tracking establishes a baseline; it does not announce a new release.
+
+See [RESEARCH_GUIDE.md](RESEARCH_GUIDE.md) for interpretation, configuration and coverage limits.
 
 ## Worldwide Newsboard
 
@@ -144,7 +155,7 @@ Open **http://localhost:8000**. The named volume retains the live snapshot at `/
 2. Open **Actions → Refresh intelligence and deploy Pages → Run workflow**, select `main`, and run it. This also retries an initial push that ran before Pages was enabled.
 3. Wait for the `build` and `deploy` jobs to succeed. Open the URL shown in the deployment or in **Settings → Pages**. The usual project URL is `https://YOUR_USERNAME.github.io/cyberwatch/`.
 
-The workflow runs on pushes to `main`, on manual workflow dispatch, and at minute **17 and 47 of every hour in UTC** (`17,47 * * * *`). GitHub scheduling is best effort, and collection and deployment take additional time. For a differently named default branch, change the branch filters in both files under `.github/workflows/`.
+The workflow runs on pushes to `main`, on manual workflow dispatch, and at minute **18 and 48 of every hour in UTC** (`18,48 * * * *`). GitHub scheduling is best effort, and collection and deployment take additional time. For a differently named default branch, change the branch filters in both files under `.github/workflows/`.
 
 With Pages alone, the dashboard button is **Reload snapshot**. It downloads the latest published data; Pages cannot run the Python collector in response to a browser click. To request collection from this setup, run the workflow in the repository's Actions tab. Use the next section to add immediate on-demand collection to a Pages-hosted console.
 
@@ -266,7 +277,7 @@ The full application automatically checks configured sources every **1,800 secon
 
 Concurrent requests reuse the active job. A new job cannot start within **60 seconds of the previous job's start**; the API returns a retry interval when that cooldown applies. A manual check does not postpone the regular automatic schedule. The server allows a collection up to five minutes before treating it as failed, and preserves the previous valid snapshot if the collector process or output validation fails. Individual publisher failures are recorded separately and retain that publisher's available previous records.
 
-On **GitHub Pages alone**, collection is scheduled at minute **17 and 47 of every UTC hour**. The **Reload snapshot** button retrieves the last published result, and a manual run of **Refresh intelligence and deploy Pages** requests a new workflow collection. GitHub schedules can be delayed, and public-repository schedules can be disabled after 60 days without repository activity. See [scheduled workflow behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+On **GitHub Pages alone**, collection is scheduled at minute **18 and 48 of every UTC hour**. The **Reload snapshot** button retrieves the last published result, and a manual run of **Refresh intelligence and deploy Pages** requests a new workflow collection. GitHub schedules can be delayed, and public-repository schedules can be disabled after 60 days without repository activity. See [scheduled workflow behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
 
 In either deployment, an open, visible browser checks for a newly published snapshot every **60 seconds** and checks again when an overdue hidden tab becomes visible. This browser polling only downloads the existing snapshot; it is separate from the 30-minute publisher collector and does not advance feed-check timestamps by itself.
 
@@ -427,6 +438,8 @@ The CLI accepts limits from 1 to 2,000 and defaults to 1,200. Update the Pages w
 | `dist/index.html` | Application entry point |
 | `dist/styles.css`, `dist/updates.css`, `dist/responsive.css`, `dist/details.css`, `dist/newsboard.css` | Console theme, update views, responsive layouts, and expanded event details |
 | `dist/app.js` | Browser rendering and interactions |
+| `dist/portal.css` | Professional portal and Research Lab visual system |
+| `dist/research-core.js`, `dist/research-ui.js` | Research metadata, filtering, standards views, learning paths and local progress |
 | `dist/core.js` | Filtering, sorting, source URL validation, exports |
 | `dist/refresh.js` | API discovery, refresh requests, job polling, and snapshot retrieval |
 | `dist/footer.js` | Measures the persistent footer and mobile navigation to reserve usable content space |
@@ -436,6 +449,9 @@ The CLI accepts limits from 1 to 2,000 and defaults to 1,200. Update the Pages w
 | `data/curated.json` | Reviewed incident content maintained in Git |
 | `data/bangladesh-curated.json` | Reviewed Bangladesh advisories, incidents, and defensive activity |
 | `data/news-sources.json` | Administrator-managed publisher/advisory catalogue and keyword settings |
+| `data/research-sources.json` | Primary research feeds, lab releases and official edition-page watches |
+| `scripts/research_sources.py` | Research classification, edition parsing, observed changes and release selection |
+| `RESEARCH_GUIDE.md`, `ROADMAP.md` | Research Lab usage and the phased product improvement plan |
 | `scripts/source_catalog.py` | Source validation, classification and keyword matching |
 | `scripts/article_content.py` | Plain-text reader extraction, image metadata, policy checks and bounded article fetching |
 | `scripts/fetch_feeds.py` | Public-feed and publisher-index collector, merge logic, and freshness metadata |

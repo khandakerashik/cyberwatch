@@ -159,14 +159,17 @@ def load_sources(base_sources, path=CATALOG_PATH):
         feeds = source.get("feedUrls")
         if not isinstance(feeds, list) or not 1 <= len(feeds) <= 3 or not all(public_endpoint(x) for x in feeds):
             raise ValueError("Catalogue feedUrls must contain one to three public HTTPS endpoints")
-        if source.get("format") not in FORMATS or source.get("group", "intelligence") not in {"intelligence", "news", "bangladesh", "newsboard"}:
+        if source.get("format") not in FORMATS or source.get("group", "intelligence") not in {"intelligence", "news", "bangladesh", "newsboard", "research"}:
             raise ValueError("Unsupported catalogue parser or group")
         if source.get("sourceType") not in SOURCE_TYPES:
             raise ValueError("Catalogue sourceType is required")
         if not isinstance(source.get("maxItems", 30), int) or isinstance(source.get("maxItems"), bool) or not 1 <= source.get("maxItems", 30) <= 100:
             raise ValueError("Source maxItems must be between 1 and 100")
-        if not isinstance(source.get("retentionDays", 30), int) or isinstance(source.get("retentionDays"), bool) or not 1 <= source.get("retentionDays", 30) <= 365:
-            raise ValueError("Source retentionDays must be between 1 and 365")
+        if source.get("group") == "research" and not isinstance(source.get("learning"), dict):
+            raise ValueError("Research source learning metadata must be an object")
+        retention_maximum = 3650 if source.get("group") == "research" and source.get("learning", {}).get("kind") == "release" else 365
+        if not isinstance(source.get("retentionDays", 30), int) or isinstance(source.get("retentionDays"), bool) or not 1 <= source.get("retentionDays", 30) <= retention_maximum:
+            raise ValueError("Source retentionDays is outside the permitted range")
         for host in source.get("redirectHosts", []):
             if not public_endpoint("https://" + str(host) + "/"):
                 raise ValueError("Redirect hosts must be public exact hostnames")
